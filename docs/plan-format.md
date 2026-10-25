@@ -1,6 +1,6 @@
 # FF calculator → bot: the plan message (v1)
 
-The calculator (calc/index.html, v37) sends this to the game tab; the bot (reader.js) follows it and reports back. Every quantity, price and budget comes from the plan; nothing is a fixed number in the bot. Sample: `plan-sample.json` next to this file.
+The calculator (calc/index.html, v38) sends this to the game tab; the bot (reader.js) follows it and reports back. Every quantity, price and budget comes from the plan; nothing is a fixed number in the bot. Sample: `plan-sample.json` next to this file.
 
 ## Messages
 
@@ -12,6 +12,9 @@ Calculator → game tab, posted to the game tab's own origin:
 - v37: it also takes messages from `window.parent`, when the game tab holds it as an iframe (`calc/?embed=1&mode=12i`; `mode` picks the calculator mode, 12i or 14).
 - v37: `{ff:"calcReady", app:"ffcalc", mode, locked}` goes to `window.parent` (if it is in an iframe) and `window.opener` (if any) on load, once the lock is known, and again each time the lock opens or closes.
 - v37: while locked it takes no game data, but answers every message from the game tab with `{ff:"ack", app:"ffcalc", mode, locked:true}`, so the bot can ask the team for the passcode.
+- v38: the plan has `alerts: [{id, kind:"jump"|"event", day, text}]`, cost warnings for the team (the bot never acts on them). A new alert re-sends the plan even when the steps are the same.
+
+Cost warnings (v38) come from: `reportFee`, `salary`, `hireFee`, `whRent` and `cities[].rent` (a rise of 20% or more is shown for 3 days), `events` (the game's news or info lines, as strings or `{day, text}`; shown from 7 days before their day), and `costChanges: [{what, from, to, day, text}]`. Only lines about a cost that carry a number or a change word are shown.
 
 Game tab → calculator (`window.opener.postMessage(msg, "*")` or the calc window):
 

@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v37 (web) -->
+<!-- FF calculator v38 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -355,6 +355,11 @@ details.more .hint{margin-top:6px}
 
 /* team lock */
 .sec-locked .wrap{display:none}   /* nothing of the plan shows until the passcode is in */
+.heads{border:1px solid var(--warn);background:var(--warn-bg);border-radius:var(--r);padding:10px 14px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.heads h2{font-size:.95rem;margin:0;color:var(--warn)}
+.heads ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.heads li{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.heads li span{flex:1;min-width:0}
 .secbox{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;display:flex;flex-direction:column;gap:12px}
 .sec-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:.86rem;color:var(--ink-2)}
 .sec-row p{flex:1 1 260px;min-width:0}
@@ -484,6 +489,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
     </div>
   </details>
 
+  <section class="heads" id="heads" hidden aria-live="polite" aria-label="Cost warnings"></section>
   <div class="main">
     <section class="plan" id="plan" aria-label="Today's plan"></section>
     <aside class="inputs" id="inputs" aria-label="Inputs"></aside>
@@ -2078,6 +2084,27 @@ function botStepOf(S, R, s){
 }
 const emergWhy = (g, R) => n(g.delinq) > 0 ? `${f0(n(g.delinq))} delinquent${n(g.delinq) === 1 ? "" : "s"}` : `cash under 3 days of fixed costs (${fk(R.fixed*3)})`;
 const planHash = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); };
+/* heads-up: a daily cost that just went up, or a game event that says a cost will change soon, so the team can cancel it before it's charged.
+   Only the team acts on these: the bot never cancels anything. */
+const COSTWORD = /report|marketing|media|advert|rent|salary|wage|staff|fee|interest|overdraft|loan|transport|shipping|freight|tax|penalt|price|cost|charge/i;
+const FEENAME = {report: "Market report fee", salary: "Staff salary", hire: "Hiring fee", whRent: "Warehouse rent per m²", rent: "Store rent"};
+function headsOf(S){
+  const B = S.book || {}, day = n(S.g.day) || 1, left = Math.max(0, (n(S.g.maxDay) || day) - day + 1), out = [];
+  for (const [k, f] of Object.entries(B.fees || {})) {
+    if (!f || !(n(f.was) > 0) || !(n(f.v) >= 1.2*n(f.was)) || n(f.day) < day - 3) continue;   // up 20% or more in the last 3 days
+    const [kind, where] = k.split(":"), name = (FEENAME[kind] || kind) + (where ? ` in ${where}` : "");
+    const tip = kind === "report" ? "Cancel the market report before the next day if you don't need it" : "Cut it before the next day if it isn't worth it";
+    out.push({id: `fee:${k}:${n(f.day)}`, kind: "jump", what: k, day: n(f.day), from: n(f.was), to: n(f.v), toEnd: Math.round(n(f.v)*left),
+      text: `${name} went up from ${fk(n(f.was))} to ${fk(n(f.v))}${kind === "report" || kind === "salary" ? " a day" : ""} on day ${n(f.day)}. ${tip}: at this price it costs about ${fk(n(f.v)*left)} more by the last day.`});
+  }
+  for (const e of B.events || []) {
+    if (!e || !COSTWORD.test(e.text) || !(/\d/.test(e.text) || /ris|increas|rais|up\b|higher|doubl|jump|chang/i.test(e.text))) continue;   // a cost and a number or a change
+    const d = e.day != null ? n(e.day) : null;
+    if (d != null ? d < day || d > day + 7 : n(e.seen) < day - 2) continue;   // events on today or the next 7 days; a dated-less one for 3 days after it shows up
+    out.push({id: "ev:" + e.key, kind: "event", day: d, text: (d != null ? (d === day ? "Today: " : `Day ${d} (in ${d - day} day${d - day === 1 ? "" : "s"}): `) : "") + (d != null ? e.text.replace(/^\s*(from\s+)?day\s*\d+\s*[:,-]?\s*/i, "") : e.text)});
+  }
+  return out.sort((a, b) => (a.day ?? 1e9) - (b.day ?? 1e9));
+}
 /* the plan object the game tab's bot follows ({ff:"plan", v:1, ...}): every number comes from here, nothing is fixed in the bot */
 function toPlan(S, X, mode){
   const g = S.g, R = X.R, B = X.B, T = X.T, ST = stepsOf(S, X), NX = nextOf(S, X), checks = checksOf(S, X, ST);
@@ -2104,6 +2131,7 @@ function toPlan(S, X, mode){
   const okAll = checks.every(c => c.ok || c.id === "time");
   return {ffplan: 1, v: 1, planId: `${mode}-d${R.day}-${R.sk}-${hash}`, mode, source: S.preset === "game" ? "game" : "preset", stage: (S.g.prep != null ? S.g.prep : R.day === 1) ? "prep" : "day", strategy: R.sk, day: R.day, maxDay: R.maxDay, phase: R.phase,
     madeAt: Date.now(), dataAt: n(S.liveAt) || n(S.pastedAt) || 0, validUntilDay: R.day + 2, ok: okAll, rescue: X.mode === "mustOnly", warnings,
+    alerts: headsOf(S).map(a => ({id: a.id, kind: a.kind, day: a.day, text: a.text})),
     inputs: {lead: R.lead, payTerms: n(g.payTerms), b2bPayDays: n(g.b2bPayDays), b2bDueDays: n(g.b2bDueDays), lot: R.step, storeStep: R.steps.store, whStep: R.steps.wh, H: T.H},
     cash: {cash: n(g.cash), odUsed: n(g.odUsed), net0: round(B.net0), hardFloor: round(T.hardFloor), keepDays: B.keepDays, keep: round(B.keep), spendable: round(B.spendable),
       low: {day: T.low.day, cash: round(T.low.net), floor: round(T.low.floor), room: round(T.low.head)}},
@@ -2174,6 +2202,24 @@ function bookOf(b, D, day){
   if (!B.acks || typeof B.acks !== "object") B.acks = {};
   if (!B.mkSet || typeof B.mkSet !== "object") B.mkSet = {};
   D = D || {};
+  if (!B.fees || typeof B.fees !== "object") B.fees = {};
+  if (!Array.isArray(B.events)) B.events = [];
+  {   // daily costs as the game shows them: a change is remembered with the old value, for the heads-up
+    const now = {report: D.reportFee, salary: D.salary, hire: D.hireFee, whRent: D.whRent};
+    for (const c of Array.isArray(D.cities) ? D.cities : []) if (c && c.name) now["rent:" + String(c.name).slice(0, 40)] = c.rent;
+    for (const [k, x] of Object.entries(now)) { const v = n(x); if (!(v > 0)) continue; const f = B.fees[k];
+      if (!f) B.fees[k] = {v, day}; else if (v !== n(f.v)) B.fees[k] = {v, day, was: n(f.v)}; }
+    // game news and events (strings or {day, text}), and cost changes the reader worked out ({what, from, to, day, text})
+    const evs = [...(Array.isArray(D.events) ? D.events : []), ...(Array.isArray(D.costChanges) ? D.costChanges : [])];
+    const byKey = new Map(B.events.map(e => [e.key, e]));
+    for (const e of evs.slice(0, 100)) {
+      const o = typeof e === "string" ? {text: e} : e && typeof e === "object" ? e : null; if (!o) continue;
+      const text = String(o.text || (o.what ? `${o.what}${o.from != null ? ` from ${o.from}` : ""}${o.to != null ? ` to ${o.to}` : ""}` : "")).replace(/\s+/g, " ").trim().slice(0, 240); if (!text) continue;
+      const dm = text.match(/\bday\s*(\d{1,3})\b/i), d = o.day != null && isFinite(+o.day) ? +o.day : dm ? +dm[1] : null, key = planHash(text + "|" + d);
+      if (!byKey.has(key)) byKey.set(key, {key, text, day: d, seen: day});
+    }
+    B.events = [...byKey.values()].filter(e => (e.day ?? e.seen) >= day - 10).slice(-60);
+  }
   if (Array.isArray(D.b2bOrders)) {
     const stx = o => String(o.status || ""), shipped = o => Math.max(n(o.allocated), typeof o.delivered === "number" ? o.delivered : 0);   // units already allocated (they leave the warehouse) or delivered
     const dlv = o => o.delivered === true || (n(o.qty) > 0 && shipped(o) >= n(o.qty)) || /complet/i.test(stx(o)) || n(o.deliverDay ?? o.deliveredDay) > 0;
@@ -3012,7 +3058,21 @@ function updateProgress(){
   if (txt) txt.textContent = `${done}/${ticks.length} done`;
   if (bar) bar.style.width = (ticks.length ? done/ticks.length*100 : 0).toFixed(1) + "%";
 }
+const HEADS_K = KEY + "-heads-seen";
+let headsSeen = (() => { try { return new Set(JSON.parse(localStorage.getItem(HEADS_K)) || []); } catch (e) { return new Set(); } })(), headsTold = new Set();
+function renderHeads(){
+  const el = $("heads"); if (!el) return;
+  let list = []; try { list = S.preset === "game" ? headsOf(S) : []; } catch (e) {}
+  const show = list.filter(a => !headsSeen.has(a.id));
+  for (const a of show) if (!headsTold.has(a.id)) { headsTold.add(a.id); toast("Heads-up: " + a.text); }
+  el.hidden = !show.length;
+  el.innerHTML = show.length ? `<h2>Heads-up: costs to check before the next day</h2><ul>${show.map(a => `<li><span>${esc(a.text)}</span><button type="button" data-heads="${esc(a.id)}">Got it</button></li>`).join("")}</ul>
+    <p class="hint">The bot never cancels anything: cancel it yourself in the game if it isn't worth it.</p>` : "";
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-heads]"); if (!b) return;
+  headsSeen.add(b.dataset.heads); try { localStorage.setItem(HEADS_K, JSON.stringify([...headsSeen].slice(-200))); } catch (err) {} renderHeads(); });
 function renderTop(){
+  renderHeads();
   const game = S.preset === "game";
   const last = Math.max(n(S.liveAt), LV[MODE].at || 0), live = game && last > Date.now() - 120000;   // a live game tab sent data in the last 2 minutes (here or at a teammate's)
   $("srcDot").className = "dot" + (game ? " ok" : "") + (live ? " live" : "");
@@ -3375,8 +3435,9 @@ function sendPlan(m, force = false){   // at most one send per burst; the same p
   q.t = setTimeout(() => {
     q.t = 0; const L = LV[m], P = PLANS[m], to = L && (L.origin || originOf(L.url));
     if (!L || !L.win || L.win.closed || !P || P.source !== "game" || !to || locked()) { q.force = false; return; }   // only a plan made from the game's numbers, only to the game's own address
-    if (!q.force && P.planId === q.id && Date.now() - q.at < 5000) return;
-    q.force = false; q.id = P.planId; q.at = Date.now();
+    const sid = P.planId + "|" + (P.alerts || []).map(a => a.id).join(",");   // a new heads-up goes out even when the steps are the same
+    if (!q.force && sid === q.id && Date.now() - q.at < 5000) return;
+    q.force = false; q.id = sid; q.at = Date.now();
     const {all, ...msg} = P;   // the bot gets its own steps; the calculator's full list stays here
     try { L.win.postMessage({...msg, ff: "plan", app: "ffcalc", mode: m}, to); } catch (err) {}
   }, 120);
