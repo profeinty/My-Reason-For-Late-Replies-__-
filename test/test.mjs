@@ -1,5 +1,5 @@
 // FF bot on the stand-in game: real run, practice run, screen check, Start opening the calculator, a game error,
-// the B2B bid history, shipping won orders, machines, e-commerce, and prices never touched.
+// the B2B bid history, shipping won orders, machines, e-commerce, approving the bot's own requests, and prices never touched.
 import { chromium } from "playwright";
 const BASE = "http://localhost:" + (process.argv[2] || 8790), OUT = process.argv[3] || ".";
 const PRODUCTS = [["Americano", "Coffee"], ["Hot Chocolate", "Chocolate"], ["Bubble Milk Tea", "Milk Tea"]].map(([name, ing]) =>
@@ -49,13 +49,16 @@ const runDone = p => p.waitForFunction(() => window.__ff.bot.run && window.__ff.
 const server = async () => (await fetch(BASE + "/log")).json();
 const click = (p, sel) => p.evaluate(new Function(`${sh(sel)}.click()`));
 const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerText`));
+const memOf = p => p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")) || {});
+const ME = "FF Player", botTx = L => L.S.tx.filter(x => x.id >= 2000 && x.who === ME && !/Price/.test(x.what));   // the bot's own requests on the Transactions screens
+const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} ${x.who === ME ? "us" : x.who} ${x.status}`).join(" | ");
 
 { // A: the real run of a pasted plan
   const {ctx, p, errs} = await open();
   console.log("A plan:", await p.evaluate(pl => window.__ff.plan(pl), PLAN) || "taken");
   const t = Date.now(); await click(p, '[data-bot="go"]'); await runDone(p);
-  const S = await steps(p), L = await server(), took = await p.evaluate(() => window.__ff.bot.run.took);
-  console.log(`A took ${took} ms (wall ${Date.now() - t} ms)`); for (const s of S) console.log("  ", s.sec, s.t, s.pr || "", "=>", s.st, "|", s.why);
+  const S = await steps(p), L = await server(), took = await p.evaluate(() => window.__ff.bot.run.took), out = await p.evaluate(() => window.__ff.bot.run.out);
+  console.log(`A took ${took} ms, orders out in ${out} ms (wall ${Date.now() - t} ms)`); for (const s of S) console.log("  ", s.sec, s.t, s.pr || "", "=>", s.st, "|", s.why);
   const posts = L.log.filter(x => x.m === "POST"); for (const x of posts) console.log("   POST", x.cmd, x.body, "->", x.r);
   console.log("   timeline:", L.log.filter(x => x.t >= t).map(x => `${((x.t - t)/1000).toFixed(1)}s ${x.m} ${x.cmd || x.x}`).join(" | "));
   const st = (sec, t, pr) => S.find(s => s.sec === sec && s.t === t && (!pr || s.pr === pr)) || {};
@@ -78,7 +81,21 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("A marketing Berlin 6000 Hamburg 3000 Cologne kept", L.S.mkt.MA[11] === 6000 && L.S.mkt.MA[13] === 3000 && L.S.mkt.MA[17] === 2000);
   check("A never touched Cancel", !L.log.some(x => x.cmd === "SPACE_CANCEL"));
   check("A cash above reserve", L.S.cash >= 100000, "cash " + L.S.cash);
-  check("A under 30 s", took < 30000);
+  check("A every order out under 5 s", out < 5000, out + " ms");
+  check("A under 15 s, approvals included", took < 15000, took + " ms");
+  check("A no list screen read too soon after another (the game refuses those)", !L.log.some(x => x.m === "SLOW"), L.log.filter(x => x.m === "SLOW").map(x => x.x).join(", "));
+  const ajax = L.log.filter(x => x.m === "AJAX"), ours = botTx(L), txs = id => (L.S.tx.find(x => x.id === id) || {}).status;
+  console.log("   transactions:", txLine(L));
+  check("A every request of the bot approved", ours.length >= 7 && ours.every(x => x.status !== "Requested") && L.S.approved.length === ours.length, txLine(L));
+  check("A on a row it only approves, as the game's own ✓ does", ajax.length === ours.length && ajax.every(x => /action=approve/.test(x.body) && /mode=MODE_TRANSACTION/.test(x.body) && x.xhr === "XMLHttpRequest" && !/^Error/.test(x.r)) && !L.log.some(x => x.m === "CANCEL") && !L.S.cancelled.length);
+  check("A a teammate's requests left alone", txs(1991) === "Requested" && L.S.tx.filter(x => x.who !== ME && x.id >= 2000).every(x => x.status === "Requested"));
+  check("A our requests from before the bot left alone", txs(1990) === "Requested" && txs(1700) === "Requested");
+  check("A a price change never approved", L.S.tx.filter(x => /Price/.test(x.what)).every(x => x.status === "Requested"));
+  const okOf = re => L.log.filter(x => x.m === "AJAX" && L.S.tx.some(t => re.test(t.what) && t.id >= 2000 && new URLSearchParams(x.body).get("id") === String(t.id)));
+  const rentOk = okOf(/Retail Rental/), buyOk = okOf(/Finished Goods Purchase/);
+  check("A the shop rentals approved before the store stock for them", rentOk.length === 2 && buyOk.length === 2 && rentOk.every(x => buyOk.every(y => x.t <= y.t)), `${rentOk.length} rentals, ${buyOk.length} store orders`);
+  check("A the bot's player learnt from its own requests", (await memOf(p)).me === ME);
+  check("A the pane shows the approvals", /approved/.test(await pane(p)));
   check("A no page errors", !errs.length, errs.join("; "));
   await p.screenshot({path: OUT + "/bot-run.png"}); await ctx.close();
 }
@@ -90,6 +107,7 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   const S = await steps(p), L = await server();
   check("B practice sends no POST", !L.log.some(x => x.m === "POST"), JSON.stringify(L.log.filter(x => x.m === "POST")));
   check("B practice opens no deal link", !L.log.some(x => /B2B_/.test(x.cmd || "")));
+  check("B practice approves nothing and reads no Transactions screen", !L.log.some(x => x.m === "AJAX") && !L.log.some(x => /^list:(RTL|MKT|ECM|WHS|LOG|PRD|MRP)$/.test(x.x || "")));
   check("B practice marks steps", S.filter(s => s.st === "done").length >= 8, S.map(s => s.st).join(","));
   check("B no page errors", !errs.length, errs.join("; "));
   await ctx.close();
@@ -101,7 +119,15 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   const rows = await p.evaluate(() => window.__ff.bot.check); for (const r of rows) console.log("  ", r.ok ? "ready" : "no   ", r.name, "|", r.detail);
   const L = await server();
   check("C sections ready", rows.filter(r => r.ok).length >= 11 && ["B2B sales orders", "Machines", "E-commerce", "Prices"].every(k => (rows.find(r => r.name === k) || {}).ok), rows.filter(r => !r.ok).map(r => r.name).join(", "));
-  check("C sends nothing", !L.log.some(x => x.m === "POST") && !L.log.some(x => x.m === "PRICE"));
+  check("C sends nothing", !L.log.some(x => x.m === "POST") && !L.log.some(x => x.m === "PRICE") && !L.log.some(x => x.m === "AJAX"));
+  const ap = rows.find(r => r.name === "Approvals") || {};
+  check("C approvals: the Transactions screens read", ap.ok && /7 Transactions screens/.test(ap.detail) && /waiting for approval \(\d+ with a ✓\)/.test(ap.detail), ap.detail);
+  const tabs = await p.evaluate(() => [...document.getElementById("ff-live").shadowRoot.querySelectorAll("[data-tab]")].map(b => b.dataset.tab));
+  check("C no Auto-click tab: a Deals tab instead", !tabs.includes("auto") && tabs.includes("deals"), tabs.join(","));
+  await click(p, '[data-tab="deals"]'); await click(p, '[data-b2b="check"]');
+  await p.waitForFunction(() => /Checked/.test(document.getElementById("ff-live").shadowRoot.querySelector('[data-f="deals"]').innerText), null, {timeout: 20000}).catch(() => {});
+  const deals = await p.evaluate(() => document.getElementById("ff-live").shadowRoot.querySelector('[data-f="deals"]').innerText);
+  check("C the Deals tab checks the B2B offers", /Checked/.test(deals) && /Grab|Skip/.test(deals), deals.slice(0, 200));
   check("C no page errors", !errs.length, errs.join("; "));
   await p.screenshot({path: OUT + "/bot-check.png"}); await ctx.close();
 }
@@ -147,7 +173,7 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v10/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v11/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -363,6 +389,9 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("R cash paid for 4", L.S.cash === 5000000 - 1200000, "cash " + L.S.cash);
   check("R production order set", L.S.prdline === "3,1,2" && st("r:prio").st === "done");
   check("R machine setup left to the user", st("r:set").st === "skipped" && /isn't mapped/.test(st("r:set").why));
+  const mrp = L.S.tx.filter(x => x.tpe === "MRP" && x.id >= 2000), m = (await memOf(p)).aprMap || {};
+  check("R machine requests found on another Transactions screen and approved", mrp.length === 5 && mrp.every(x => x.status === "Approved"), txLine(L));
+  check("R where machine requests go is kept for the game", JSON.stringify(m.machine) === '["MENU2_MODE_TRANSACTION_MRP"]', JSON.stringify(m));
   const A = (d.machineTypes || []).find(t => t.name === "Machine A") || {};
   check("R machine types for the calculator", d.machineTypes.length === 2 && A.price === 300000 && A.cap === 10000 && A.m2 === 200 && A.staff === 2, JSON.stringify(d.machineTypes));
   check("R no price command", !L.log.some(x => x.m === "PRICE"));
@@ -418,6 +447,70 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("S2 more than is free after the won orders: skipped", st("s2:big").st === "skipped" && /only 1,000 Americano .*4,000 won B2B orders/.test(st("s2:big").why), st("s2:big").why);
   check("S2 what is free: posted", st("s2:ok").st === "done" && L.S.posts.length === 1 && L.S.posts[0].qnt === "800", JSON.stringify(L.S.posts));
   check("S2 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // T: approvals with no approve script on the screen (the request the game's ✓ sends), and an approval the game refuses once is sent again
+  const {ctx, p, errs} = await open("", MEM, "&noscript=1&approvefail=once");
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => ["rent_shop", "buy_store", "marketing"].includes(s.section)));
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const L = await server(), ours = botTx(L), ajax = L.log.filter(x => x.m === "AJAX"), warn = await p.evaluate(() => window.__ff.bot.warn);
+  console.log("   transactions:", txLine(L));
+  check("T approved with no approve script on the page", ours.length >= 5 && ours.every(x => x.status !== "Requested"), txLine(L));
+  check("T each refused approval sent once more, no more", ours.every(x => ajax.filter(a => new URLSearchParams(a.body).get("id") === String(x.id)).length === 2) && !L.log.some(x => x.m === "CANCEL"));
+  check("T no warning once they went through", !/wait for approval/.test(warn), warn);
+  check("T no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // T2: the game refuses every approval: the bot says which requests still wait, the steps still count, nothing is cancelled
+  const {ctx, p, errs} = await open("", MEM, "&approvefail=all");
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => ["rent_shop", "buy_store"].includes(s.section)));
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const L = await server(), ours = botTx(L), ajax = L.log.filter(x => x.m === "AJAX"), warn = await p.evaluate(() => window.__ff.bot.warn), S = await steps(p);
+  check("T2 the bot says which requests still wait", /4 requests still wait for approval/.test(warn) && /Transactions screen/.test(warn), warn);
+  check("T2 tried twice each, never cancelled", ours.length === 4 && ours.every(x => x.status === "Requested" && ajax.filter(a => new URLSearchParams(a.body).get("id") === String(x.id)).length === 2) && !L.log.some(x => x.m === "CANCEL"));
+  check("T2 the steps themselves went through", S.filter(s => s.st === "done").length === 4, S.map(s => s.id + ":" + s.st).join(", "));
+  check("T2 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // T3: the next day, the same game: the screens are read again from their newest rows and the player is remembered
+  const {ctx, p, errs} = await open();
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store"));
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  await fetch(BASE + "/day?d=6"); await p.waitForFunction(() => window.__ff.data().day === 6, null, {timeout: 20000});
+  const n0 = (await server()).log.length;
+  await p.evaluate(pl => window.__ff.plan(pl), {...only(s => s.section === "buy_store"), day: 6, planId: "test-d6", steps: PLAN.steps.filter(s => s.section === "buy_store").map(s => ({...s, id: s.id.replace("d5", "d6")}))});
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 6 && window.__ff.bot.run.took != null, null, {timeout: 90000});
+  const L = await server(), day6 = L.S.tx.filter(x => x.id >= 2000 && x.who === ME && x.asked === 6 && !/Price/.test(x.what));
+  check("T3 the next day's requests approved too", day6.length === 2 && day6.every(x => x.status !== "Requested") && botTx(L).every(x => x.status !== "Requested"), txLine(L));
+  check("T3 no approval sent twice", L.S.approved.length === new Set(L.S.approved).size && L.log.slice(n0).filter(x => x.m === "AJAX").length === 2);
+  check("T3 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // U: the game refuses list screens (the player clicked one just then): read again a moment later, nothing lost
+  const {ctx, p, errs} = await open("", MEM, "&slow=2");
+  const d = await p.evaluate(() => window.__ff.data()), L0 = await server();
+  check("U refused list screens read again", L0.log.filter(x => x.m === "SLOW").length === 2 && (d.b2bBids || []).length >= 3, JSON.stringify((d.b2bBids || []).length));
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => ["b2b", "buy_store"].includes(s.section)));
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const S = await steps(p), L = await server();
+  check("U the plan ran", S.filter(s => s.st === "done").length >= 4 && botTx(L).every(x => x.status !== "Requested"), S.map(s => s.id + ":" + s.st).join(", "));
+  check("U no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // V: a new day with the calculator linked: the B2B deal goes first, from the plan made with the day's offers, then the rest of the day
+  const {ctx, p, errs} = await open();
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const t0 = Date.now(); await fetch(BASE + "/day?d=6&offers=1");
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 6 && window.__ff.bot.run.took != null && window.__ff.bot.run.steps.some(s => s.sec === "marketing"), null, {timeout: 60000});
+  const L = await server(), log = L.log.filter(x => x.t >= t0), deal = log.find(x => x.m === "POST" && x.cmd === "B2B_DEAL"), sales = log.find(x => x.m === "GET" && x.x === "rtl_sales");
+  const done6 = await p.evaluate(() => [...window.__ff.bot.days[6].done]), mkt = log.find(x => x.m === "POST" && x.cmd === "BUY_FG");
+  console.log("   day 6 timeline:", log.map(x => `${((x.t - t0)/1000).toFixed(2)}s ${x.m} ${x.cmd || x.x}`).join(" | "));
+  check("V the deal is taken under 1.5 s after the new day", deal && deal.t - t0 < 1500, deal ? (deal.t - t0) + " ms" : "no deal");
+  check("V it went out before the day's sales were read", deal && sales && deal.t <= sales.t + 400, deal && sales ? `${deal.t - t0} vs ${sales.t - t0} ms` : "");
+  check("V the rest of the day's plan ran after", !!mkt && mkt.t > deal.t && done6.length >= 3, mkt ? `${mkt.t - t0} ms, done ${done6.join(", ")}` : "no store order");
+  check("V the whole day sent under 4 s", mkt && mkt.t - t0 < 4000, mkt ? (mkt.t - t0) + " ms" : "");
+  check("V no list screen read too soon", !log.some(x => x.m === "SLOW"));
+  check("V no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 await b.close();

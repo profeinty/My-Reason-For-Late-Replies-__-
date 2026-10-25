@@ -1,5 +1,7 @@
 // Stand-in MonsoonSIM game for the FF bot: dashboard, action menus, forms, POST handling, a request log.
 // The B2B, Sales Order, allocate, Web Market and machine screens copy the real 12i game's HTML (game-notes/screens.md).
+// Each action also waits as "Requested" on its Transactions screen, as in the real game, until it is approved (ajax.php ACTION_ON_ROW);
+// the screens and their approve scripts copy the real RTL Transactions screen. Which screen holds what is a guess past RTL.
 import http from "node:http";
 import fs from "node:fs";
 const PORT = +process.argv[2] || 8790, READER = process.argv[3];
@@ -9,8 +11,11 @@ const NAMES = {P1: "Americano", P2: "Hot Chocolate", P3: "Bubble Milk Tea", P4: 
 const DIM = {P1: 0.005, P2: 0.005, P3: 0.005, P4: 0.05, P5: 0.0006, P6: 0.0005, P7: 0.0005, P8: 0.0008};
 const MACH = {1: {name: "Machine A", price: 300000, cap: 10000, m2: 200, staff: 2}, 2: {name: "Machine B", price: 200000, cap: 6000, m2: 150, staff: 1}};
 const PLACE = {11: "Berlin Retail", 13: "Hamburg Retail", 17: "Cologne Retail", 26: "Dusseldorf Warehouse", 27: "Cologne Warehouse"};
+const ME = "FF Player", MATE = "Denzel Kurnia";   // the bot's player, and a teammate on another account
+const TXMENUS = ["RTL", "MKT", "ECM", "WHS", "LOG", "PRD", "MRP"];
 const KEYS = ["id", "batchid", "productCode", "from", "to", "qnt", "qntAlloc", "dayIn", "priority", "exp", "status"];
-let S, log, REAL_CALC = false, STUB = "";
+let S, log, REAL_CALC = false, STUB = "", lastList = 0;
+const LIST_MS = 1000, SLOWDOWN = "<div class='box_info'>Slow down, you click too fast. Please try again</div>";   // as the real game: list screens (table_record) under a second apart are refused
 const so = (id, o) => ({id, product: "P1", qty: 1000, kind: "bid", maxBid: 15, each: null, minBidders: 1, due: 9, penalty: 6000, ourBid: null, bids: [], req: 2, result: 3, status: "Completed", allocated: 0, allocDay: null, delivered: null, offer: id - 11, ...o});
 const reset = (o = {}) => {
   S = {day: 5, maxDay: 30, cash: +o.cash || 500000, od: 0,
@@ -29,7 +34,16 @@ const reset = (o = {}) => {
       so(707, {product: "P1", qty: 2000, maxBid: 14, ourBid: 11.2, bids: [["FF", 11.2, 1], ["TGED", 13.1], ["Neo", 13.9]], status: "Completed", allocated: 2000, allocDay: 1, delivered: 2, req: 1}),
       so(708, {product: "P1", qty: 6000, maxBid: 12, ourBid: 11, bids: [["Neo", 10.5, 1], ["FF", 11]], status: "Cancelled", req: 1}),
       so(709, {product: "P3", qty: 8000, maxBid: 21, ourBid: 19.5, bids: [["FF", 19.5, 1]], status: "Completed", allocated: 8000, allocDay: 2, delivered: 3, req: 1})],
-    wsos: [], soOn: !!o.so};
+    wsos: [], soOn: !!o.so,
+    // the Transactions screens: older rows, our own request from earlier today (left for the player to decide), a teammate's
+    tx: [{id: 1421, tpe: "RTL", type: "TX", what: "Retail Rental Start Berlin. Rental Fee : 52 EUR / Day From (No Contract) To 250 m2 (30- Day Contract ) Discount : 60%", who: MATE, by: MATE, asked: 1, status: "Under Contract"},
+      {id: 1503, tpe: "RTL", type: "PO", what: "Finished Goods Purchase Seller : VFG1 Americano 1000 Unit @10 EUR Terms of Payment : Cash For : Berlin Retail", who: ME, by: ME, asked: 3, status: "PO Issued"},
+      {id: 1504, tpe: "WHS", type: "TX", what: "Warehouse Rental Start Dusseldorf. Rental Fee : 5 EUR / Day From (No Contract) To 1000 m2 (30- Day Contract )", who: ME, by: ME, asked: 2, status: "Under Contract"},
+      {id: 1505, tpe: "MKT", type: "TX", what: "Marketing Expense Media A Berlin 5000 EUR / Day", who: ME, by: ME, asked: 2, status: "Approved"},
+      {id: 1990, tpe: "RTL", type: "TX", what: "Retail Rental Change Cologne. Rental Fee : 45 EUR / Day From 100 (30-day Contract ) To 150 m2 (Daily Contract)", who: ME, asked: 5, status: "Requested"},
+      {id: 1991, tpe: "RTL", type: "PO", what: "Finished Goods Purchase Seller : VFG2 Hot Chocolate 1000 Unit @14 EUR Terms of Payment : Cash For : Hamburg Retail", who: MATE, asked: 5, status: "Requested"},
+      {id: 1700, tpe: "RTL", type: "TX", what: "Retail Rental Change Berlin. Rental Fee : 52 EUR / Day From 200 To 250 m2", who: ME, asked: 3, status: "Requested"}],
+    nextTx: 2000, approved: [], cancelled: [], noScript: !!o.noscript, approveFail: o.approvefail || "", slow: o.slow || 0};   // slow: the next list screens are refused, as if the player had just clicked one
   if (o.so) {
     S.sos.unshift(so(701, {product: "P1", qty: 4000, due: 8, ourBid: 13.5, bids: [["FF", 13.5, 1], ["TGED", 14.2]], status: "In Progress", req: 3, result: 4}),
       so(702, {product: "P2", qty: 2000, kind: "fixed", maxBid: null, each: 14, due: 7, status: "In Progress", allocated: 500, req: 4, result: null}));
@@ -57,10 +71,11 @@ const dash = () => `<div id="KPI_DAY____">${S.day} / ${S.maxDay}</div>
 <div>Machines</div><div>${S.machines.filter(m => m.lc == lc).length}</div><div>Space utilization (${Math.round(100*used(lc)/S.whs[lc].area)}%) ${used(lc).toLocaleString("en")} / ${S.whs[lc].area.toLocaleString("en")}</div>`).join("")}</div>`;
 const menus = `<a id="MENU2_retail_location" href="m?x=retail_location">Retail Location</a> <a id="MENU2_whs_location" href="m?x=whs_location">Warehouse Location</a>
 <a id="MENU2_retail_vendor" href="m?x=retail_vendor">Retail Vendor</a> <a id="MENU2_warehouse_vendor" href="m?x=warehouse_vendor">Warehouse Vendor</a>
-<a id="MENU2_retail_media" href="m?x=retail_media">Media</a> <a id="MENU2_B2Bincm" href="m?x=b2b">B2B Offers</a> <a id="MENU2_B2Bsoxx" href="m?x=b2bso">B2B Sales Order 1</a>
+<a id="MENU2_retail_media" href="m?x=retail_media">Media</a> <a id="MENU2_B2Bincm" href="table_record?cmd=LIST&amp;latestPage=0&amp;mode=MODE_TRANSACTION&amp;tpe=B2B_IN">B2B Offers</a> <a id="MENU2_B2Bsoxx" href="table_record?cmd=LIST&amp;latestPage=0&amp;mode=MODE_TRANSACTION&amp;tpe=B2BSOS">B2B Sales Order 1</a>
 <a id="MENU2_chart_rtl_forecast" href="m?x=forecast">Forecast</a> <a id="MENU2_MODE_RTL_SALES" href="m?x=rtl_sales">Retail Sales &amp; Price</a>
 <a id="MENU2_PRDbuymach" href="m?x=buymach">Buy Machine</a> <a id="MENU2_PRDmach" href="m?x=mach">Machines List</a> <a id="MENU2_PRDdail" href="m?x=dail">Daily Production</a> <a id="MENU2_PRDpord" href="m?x=pord">Production Priority</a>
-<a id="MENU2_web1" href="m?x=web1">Web Market</a> <a id="MENU2_web_pos" href="m?x=web_pos">Web Purchase Order</a> <a id="MENU2_web_sos" href="m?x=web_sos">Web Sales Order</a>`;
+<a id="MENU2_web1" href="m?x=web1">Web Market</a> <a id="MENU2_web_pos" href="m?x=web_pos">Web Purchase Order</a> <a id="MENU2_web_sos" href="m?x=web_sos">Web Sales Order</a>
+${TXMENUS.map(c => `<a id="MENU2_MODE_TRANSACTION_${c}" href="table_record?cmd=LIST&amp;latestPage=0&amp;mode=MODE_TRANSACTION&amp;tpe=${c}">Transactions</a>`).join(" ")}`;
 const GAME = page(`${menus}<div id="dash">${dash()}</div><script>
 setInterval(async () => { document.getElementById("dash").innerHTML = await (await fetch("dash")).text(); }, 300);
 </script>`);
@@ -80,6 +95,29 @@ const soRow = o => `<div id="row${o.id}"><div><div><div><span>Items:</span><div>
   ${o.result ? `<li>Bid Result Day<span>${o.result}</span></li><li>Bid Awarded Day<span>${o.result}</span></li>` : ""}${o.allocDay ? `<li>Fully Allocated Day<span>${o.allocDay}</span></li>` : ""}<li>Delivered<span>${o.delivered || ""}</span></li></ul></div></div>
   <div><span>Status:</span><div><h6></h6><h6>${o.status}</h6><span id="buttonrefresh${o.id}"><span><i></i></span></span><span id="refresh_msg${o.id}"></span></div></div></div></div></div>`;
 const soPage = (from, to) => `${S.sos.slice(from, to).map(soRow).join("")}${S.sos.length > to ? `<div id="content5${to}"><div><a id="loadmore" href="table_record?cmd=LIST&amp;latestPage=${to}&amp;cmd=LIST&amp;mode=MODE_TRANSACTION&amp;tpe=B2BSOS">Load More (${S.sos.length - to} to go)</a></div></div>` : ""}`;
+// a Transactions row as the real game writes it (RTL Transactions, day 80 of a real 12i game), with its approve and cancel scripts
+const txRow = t => `<div id="row${t.id}"><div class="xxxxxx"><div class="row">
+  <div class="mcl_row_record col-sm-4 col-md-6 p-2"><span class="field_desc hide_in_mobile">Items:</span><div><h6 class="badge badge-pill"></h6><h6 class="badge badge-pill bg-primary">${t.type}</h6><b>${t.id}</b><ol class="list-group"><li class="list-group-item d-flex justify-content-between align-items-start bg-transparent"><div class="ms-2 col-12">${t.what}<br>Triggered By : ${t.who}${t.by ? `<br>Approved By : ${t.by}` : ""}</div></li><br><br></ol><span id="update_status${t.id}"></span></div></div>
+  <div class="mcl_row_record col-sm-2 col-md-4 p-2"><span class="field_desc hide_in_mobile">Timetable:</span><div><ul class="list-unstyled fw-bold"><li>Total: <span class="right">1,000 EUR</span></li></ul><br><ul class="list-unstyled"><li><b>Timeline</b><span class="right">Day</span></li><li>Requested<span class="right">${t.asked}</span></li><li>Approved<span class="right">${t.by ? t.okDay || t.asked : ""}</span></li></ul></div></div>
+  <div class="mcl_row_record col-sm-2 col-md-2 p-2"><span class="field_desc hide_in_mobile">Status:</span><div><h6 class="badge">${t.status}</h6>${t.status === "Requested" ? `<span id="buttonapprove${t.id}"><span class="avatar-b btn_ajax"><i id="iconapprove${t.id}" class="fa-solid fa-check fa-1x"></i></span></span> <span id="buttoncancel${t.id}"><span class="avatar-b btn_ajax"><i id="iconcancel${t.id}" class="fa-solid fa-xmark fa-1x"></i></span></span>` : ""}</div></div></div></div></div>
+  ${t.status === "Requested" && !S.noScript ? `<script>$('#buttonapprove${t.id}').click(function() {
+                            $.ajax({url: "ajax.php?cmd=ACTION_ON_ROW", type: 'POST', data: ({id:'${t.id}', mode:'MODE_TRANSACTION', unique: '${t.id}', action: 'approve'}),
+                                success: function(result){ if (result) $('#update_status${t.id}').html(result); } }); });
+  $('#buttoncancel${t.id}').click(function() { if (confirm('Are you sure?')) $.ajax({url: "ajax.php?cmd=ACTION_ON_ROW", type: 'POST', data: ({id:'${t.id}', mode:'MODE_TRANSACTION', unique: '${t.id}', action: 'cancel'}), success: function(result){ $('#update_status${t.id}').html(result); } }); });</script>` : ""}`;
+const txPage = (tpe, from, to) => { const list = S.tx.filter(t => t.tpe === tpe).sort((a, b) => b.id - a.id);
+  return `${list.slice(from, to).map(txRow).join("")}${list.length > to ? `<div id="content5${to}"><div><a id="loadmore" href="table_record?cmd=LIST&amp;latestPage=${to}&amp;cmd=LIST&amp;mode=MODE_TRANSACTION&amp;tpe=${tpe}">Load More (${list.length - to} to go)</a></div></div>` : ""}`; };
+// which screen each action waits on (a guess past RTL): machines on MRP on purpose, so the bot has to find them
+const TXOF = {SPACE_MANAGE: q => S.shops[q.get("ac")] ? "RTL" : "WHS", BUY_FG: () => "RTL", BUY_RM: () => "MRP", INVEST_MKT: () => "MKT", TOBUY_ECM: () => "ECM", WEB_POST: () => "ECM", PRD_MACHINE_BUY: () => "MRP", PRD_PRODUCT_ORDER: () => "MRP"};
+const txAdd = (tpe, type, what, who = ME) => { const t = {id: S.nextTx++, tpe, type, what, who, asked: S.day, status: "Requested"}; S.tx.push(t); return t; };
+const txWhat = (q, b) => { const cmd = q.get("cmd");
+  if (cmd === "SPACE_MANAGE") { const ac = q.get("ac"), s = S.shops[ac] || S.whs[ac]; return ["TX", `${S.shops[ac] ? "Retail" : "Warehouse"} Rental ${s.area ? "Change" : "Start"} ${s.name}. Rental Fee : ${s.rate} EUR / Day From ${s.area || "(No Contract)"} To ${b.get("rent" + ac)} m2 (${b.get("terms" + ac)}-day Contract )`]; }
+  if (cmd === "BUY_FG" || cmd === "BUY_RM") { const dest = b.get(cmd === "BUY_FG" ? "destination_rtl" : "destination_whs"); return ["PO", `${cmd === "BUY_FG" ? "Finished Goods" : "Raw Material"} Purchase Seller : V${q.get("vc")} ${[...b].filter(([k, v]) => /^P\d$/.test(k) && v).map(([k, v]) => `${NAMES[k]} ${v} Unit @${PRICE[k]} EUR`).join(", ")} Terms of Payment : Cash For : ${PLACE[dest]}`]; }
+  if (cmd === "INVEST_MKT") return ["TX", `Marketing Expense Media ${q.get("ma").slice(1)} ${[...b].filter(([k]) => /^invest\d+$/.test(k)).map(([k, v]) => `${PLACE[k.slice(6)]} ${v} EUR / Day`).join(", ")}`];
+  if (cmd === "TOBUY_ECM") return ["PO", `Web Market Purchase ID : ${q.get("id")} For : ${PLACE[b.get("destination")]}`];
+  if (cmd === "WEB_POST") return ["TX", `Web Market Post Product : ${S.draft ? NAMES["P" + S.draft.pcode.slice(1)] : ""} Quantity : ${b.get("qnt")}`];
+  if (cmd === "PRD_MACHINE_BUY") return ["TX", `Machine Purchase Type : ${MACH[q.get("mac")].name} For : ${PLACE[b.get("lc")]}`];
+  if (cmd === "PRD_PRODUCT_ORDER") return ["TX", `Production Priority Order : ${b.get("PRDLINE")}`];
+  return null; };
 // the allocate screen: its script carries the order (prodData) and every batch of that product (oriData), as the real one
 const allocForm = (q, o, to) => {
   const pc = +o.product.slice(1), docks = [26, 27, 11, 13, 17], bs = S.batches.filter(b => b.pc === pc);
@@ -193,6 +231,24 @@ const apply = (q, b) => {
   if (cmd === "PRD_PRODUCT_ORDER") { if (!b.get("PRDLINE")) return "Error: please select one"; S.prdline = b.get("PRDLINE"); return "Production priority saved."; }
   return "Unknown action";
 };
+const act = (q, b) => {   // the action, then its request on its Transactions screen (a teammate's and a price change of ours turn up with the first store order)
+  const before = q.get("cmd") === "WEB_POST" ? S.draft : null, r = apply(q, b), cmd = q.get("cmd");
+  if (typeof r === "string" && !/^(Error|Sorry|Unknown)/.test(r) && TXOF[cmd]) {
+    const save = S.draft; S.draft = S.draft || before; const w = txWhat(q, b); S.draft = save;
+    if (w) txAdd(TXOF[cmd](q), w[0], w[1]);
+    if (cmd === "BUY_FG" && !S.mate) { S.mate = 1; txAdd("RTL", "PO", "Finished Goods Purchase Seller : VFG2 Bubble Milk Tea 1000 Unit @17 EUR Terms of Payment : Cash For : Cologne Retail", MATE); txAdd("RTL", "TX", "Retail Price Change Americano From 20 To 22 EUR"); }
+  }
+  return r;
+};
+const onRow = b => {   // the approve and cancel buttons of a Transactions row
+  const t = S.tx.find(x => String(x.id) === b.get("id"));
+  if (b.get("action") === "cancel") { S.cancelled.push(b.get("id")); log.push({t: Date.now(), m: "CANCEL", id: b.get("id")}); if (t) t.status = "Cancelled"; return "Cancelled"; }   // must never happen
+  if (b.get("action") !== "approve" || b.get("mode") !== "MODE_TRANSACTION" || b.get("unique") !== b.get("id")) return "Error: invalid request";
+  if (!t || t.status !== "Requested") return "Error: nothing to approve";
+  if (S.approveFail === "all" || (S.approveFail === "once" && !t.failed)) { t.failed = 1; return "Error: not enough cash to approve"; }
+  t.status = t.type === "PO" ? "PO Issued" : /Rental/.test(t.what) ? "Under Contract" : "Approved"; t.by = ME; t.okDay = S.day; S.approved.push(t.id);
+  return `<span class="badge bg-success">${t.status}</span>`;
+};
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x"), q = u.searchParams; let body = "";
   req.on("data", c => body += c);
@@ -204,14 +260,20 @@ http.createServer((req, res) => {
     if (u.pathname === "/dash") return send(dash());
     if (u.pathname === "/calc/") return send(REAL_CALC ? fs.readFileSync(process.env.CALC_FILE || new URL("../calc/index.html", import.meta.url), "utf8")   // /reset?calc=real: the real calculator (CALC_FILE: another copy of it)
       : fs.readFileSync(new URL("./calc-stub.html", import.meta.url), "utf8").replace("<head>", `<head><script>window.STUB = ${JSON.stringify({old: STUB === "old", locked: STUB === "locked"})}</script>`));
-    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash")}); return send("ok"); }
+    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash"), noscript: q.get("noscript") === "1", approvefail: q.get("approvefail") || "", slow: +q.get("slow") || 0}); return send("ok"); }
     if (u.pathname === "/log") return send(JSON.stringify({log, S}), "application/json");
-    if (u.pathname === "/day") { S.day = +q.get("d"); return send("ok"); }
+    if (u.pathname === "/day") { S.day = +q.get("d"); if (q.get("offers")) for (const k in S.offers) S.offers[k] = "open"; return send("ok"); }   // offers=1: the day's offers are open again
     if (u.pathname === "/m") { log.push({t: Date.now(), m: "GET", x: q.get("x")}); return send(page(MENU[q.get("x")]())); }
-    if (u.pathname === "/table_record") { log.push({t: Date.now(), m: "GET", x: "list:" + q.get("tpe"), q: u.search}); const from = +q.get("latestPage") || 0; return send(page(soPage(from, from + 5))); }
+    if (u.pathname === "/table_record") {
+      const now = Date.now(), early = now - lastList < LIST_MS || S.slow > 0; lastList = now;
+      if (early) { if (S.slow > 0) S.slow--; log.push({t: now, m: "SLOW", x: "list:" + q.get("tpe")}); return send(SLOWDOWN); }
+      log.push({t: now, m: "GET", x: "list:" + q.get("tpe"), q: u.search}); const from = +q.get("latestPage") || 0, tpe = q.get("tpe");
+      return send(page(TXMENUS.includes(tpe) ? txPage(tpe, from, from + 5) : tpe === "B2B_IN" ? MENU.b2b() : soPage(from, from + 5))); }
+    if (u.pathname === "/ajax.php") { const b = new URLSearchParams(body), r = req.method === "POST" && q.get("cmd") === "ACTION_ON_ROW" ? onRow(b) : "Error: unknown";
+      log.push({t: Date.now(), m: "AJAX", cmd: q.get("cmd"), body, r, xhr: req.headers["x-requested-with"] || ""}); return send(r); }
     if (u.pathname === "/ms_sure_learner") {
       const cmd = q.get("cmd");
-      if (req.method === "POST") { const b = new URLSearchParams(body), r = apply(q, b); log.push({t: Date.now(), m: "POST", cmd, q: u.search, body, r});
+      if (req.method === "POST") { const b = new URLSearchParams(body), r = act(q, b); log.push({t: Date.now(), m: "POST", cmd, q: u.search, body, r});
         if (S.fail === "E500:" + cmd) { res.writeHead(500); return res.end("server error"); }   // the order went through, the answer didn't
         return send(page(r === null ? STEP2 : `<div class="msg">${r}</div>`)); }
       log.push({t: Date.now(), m: "GET", cmd, q: u.search});
