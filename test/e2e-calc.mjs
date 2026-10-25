@@ -14,7 +14,7 @@ let fails = 0;
 const check = (name, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${extra ? " :: " + extra : ""}`); if (!ok) fails++; };
 const server = async () => (await fetch(BASE + "/log")).json();
 
-for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash", "&so=1&wfg=1&mach=1&cash=5000000"]]) {
+for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash", "&so=1&wfg=1&mach=1&cash=5000000"], ["a cost goes up", "&fee=50000"]]) {
   console.log(`\n== ${name}`);
   await (await fetch(BASE + "/reset?calc=real" + extra)).text();
   const ctx = await b.newContext({viewport: {width: 1300, height: 900}});
@@ -55,6 +55,13 @@ for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash
     for (const m of R.notes) console.log("   note:", m);
     check(`${name}: no step the bot doesn't know`, !R.steps.some(s => /doesn't know/.test(s.why)), R.steps.filter(s => /doesn't know/.test(s.why)).map(s => s.id).join(", "));
     check(`${name}: no failed step`, !R.steps.some(s => s.st === "failed"), R.steps.filter(s => s.st === "failed").map(s => `${s.id}: ${s.why}`).join("; "));
+  }
+  if (/fee=/.test(extra)) {   // the market report's fee jumps and the game says so: the calculator's heads-up shows in the bot's panel
+    await fetch(BASE + "/day?d=6&fee=250000&news=" + encodeURIComponent("Day 9: the Market Report fee goes up to 300,000 EUR per day"));
+    const heads = () => p.evaluate(new Function(`return ${sh('[data-f="heads"]')}.innerText`));
+    const seen = await p.waitForFunction(new Function(`return /250k|250,000/.test(${sh('[data-f="heads"]')}.innerText) && /Day 9/.test(${sh('[data-f="heads"]')}.innerText)`), null, {timeout: 60000}).then(() => true, () => false);
+    console.log("   heads-up:", (await heads()).replace(/\s*\n\s*/g, " | "));
+    check(`${name}: the calculator's heads-up (fee jump and the game's news) shows in the panel`, seen);
   }
   console.log("   game POSTs:", L.log.filter(x => x.m === "POST").map(x => x.cmd).join(", ") || "none");
   check(`${name}: no price command`, !L.log.some(x => x.m === "PRICE"));

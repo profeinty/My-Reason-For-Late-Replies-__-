@@ -173,7 +173,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v11/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v12/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -511,6 +511,89 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("V the whole day sent under 4 s", mkt && mkt.t - t0 < 4000, mkt ? (mkt.t - t0) + " ms" : "");
   check("V no list screen read too soon", !log.some(x => x.m === "SLOW"));
   check("V no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // W: from 4/10 of the game (day 12 of 30) a fixed-price deal goes the moment the day changes, before the calculator's plan; one per product
+  const {ctx, p, errs} = await open("", MEM, "&wfg=1");
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  for (let t = 0; t < 40 && (await server()).log.some(x => /^list:/.test(x.x || "") && x.t > Date.now() - 1500); t++) await p.waitForTimeout(250);   // the day's approvals done, as late in a real day
+  const t0 = Date.now(); await fetch(BASE + "/day?d=12&offers=1");
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 12 && window.__ff.bot.run.took != null && window.__ff.bot.run.steps.some(s => s.sec === "marketing"), null, {timeout: 60000});
+  await p.waitForTimeout(1500);
+  const L = await server(), log = L.log.filter(x => x.t >= t0), deals = log.filter(x => x.m === "POST" && x.cmd === "B2B_DEAL"), list = log.find(x => x.m === "GET" && x.x === "list:B2B_IN");
+  console.log("   day 12 timeline:", log.slice(0, 14).map(x => `${((x.t - t0)/1000).toFixed(2)}s ${x.m} ${x.cmd || x.x}`).join(" | "));
+  const S = await steps(p), rep = await p.evaluate(() => window.__ff.report()), d12 = await p.evaluate(() => ({done: [...window.__ff.bot.days[12].done], r: window.__ff.bot.days[12].reports["d12:b2b:accept:12"] || {}}));
+  check("W the deal is taken under 0.6 s after the new day", deals.length && deals[0].t - t0 < 600, deals.length ? (deals[0].t - t0) + " ms" : "no deal");
+  check("W the offers were the day's first list screen", !!list && log.filter(x => /^list:/.test(x.x || "")).indexOf(list) === 0);
+  check("W one Americano deal: offer 12, not 14 too", deals.length === 1 && /id=12/.test(deals[0].q) && L.S.offers[12] === "in" && L.S.offers[14] === "open", deals.map(x => x.q).join(", "));
+  check("W the plan's accept booked as done", d12.done.includes("d12:b2b:accept:12") && d12.r.status === "done" && /moment the day began/.test(d12.r.note) && d12.r.qty === 3000 && d12.r.price === 14, JSON.stringify(d12.r));
+  check("W the log says when", /took offer 12: 3,000 Americano at 14, \d+ ms into the day/.test(rep));
+  check("W the rest of the day's plan ran", d12.done.length >= 3, d12.done.join(", "));
+  check("W no list screen read too soon", !log.some(x => x.m === "SLOW"));
+  check("W no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // W2: the same day with the instant grab turned off in the Bot tab: the deal comes from the calculator's plan
+  const {ctx, p, errs} = await open("", MEM, "&wfg=1");
+  await click(p, '[data-bot="snap"]'); await click(p, '[data-bot="go"]'); await runDone(p);
+  const t0 = Date.now(); await fetch(BASE + "/day?d=12&offers=1");
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 12 && window.__ff.bot.run.took != null && window.__ff.bot.run.steps.some(s => s.sec === "marketing"), null, {timeout: 60000});
+  const L = await server(), deals = L.log.filter(x => x.t >= t0 && x.m === "POST" && x.cmd === "B2B_DEAL"), m = await memOf(p), rep = await p.evaluate(() => window.__ff.report());
+  const r = await p.evaluate(() => window.__ff.bot.days[12].reports["d12:b2b:accept:12"] || {});
+  check("W2 off: the plan took offer 12", deals.length === 1 && r.status === "done" && !/moment the day began/.test(r.note) && !/into the day/.test(rep) && m.snap === false, JSON.stringify(r));
+  check("W2 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // W3: practice on day 12 only says which deal it would take
+  const {ctx, p, errs} = await open("", MEM, "&wfg=1");
+  await click(p, '[data-bot="dry"]'); await click(p, '[data-bot="go"]'); await runDone(p);
+  await fetch(BASE + "/day?d=12&offers=1");
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 12 && window.__ff.bot.run.took != null, null, {timeout: 60000});
+  const L = await server(), rep = await p.evaluate(() => window.__ff.report());
+  check("W3 practice: would take offer 12, nothing sent", /practice, day 12: would take offer 12: 3,000 Americano at 14 at once/.test(rep) && !L.log.some(x => x.m === "POST"));
+  check("W3 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // Y: the team sets a warehouse's size in the Bot tab: the bot keeps it at that size (more, or less) in place of the plan's warehouse step
+  const {ctx, p, errs} = await open();
+  const setWh = (city, m2) => p.evaluate(new Function(`${sh('[data-wh="city"]')}.value = ${JSON.stringify(city)}; ${sh('[data-wh="m2"]')}.value = "${m2}"; ${sh('[data-wh="set"]')}.click();`));
+  await setWh("Dusseldorf", 2000);
+  await p.evaluate(pl => window.__ff.plan(pl), PLAN); await click(p, '[data-bot="go"]'); await runDone(p);
+  let S = await steps(p), L = await server();
+  const mine = S.find(s => /^you:wh:/.test(s.id)) || {}, theirs = S.find(s => s.id === "d5:space:warehouse") || {}, posts = L.log.filter(x => x.m === "POST" && x.cmd === "SPACE_MANAGE");
+  check("Y Dusseldorf warehouse 2000 m2, its 30-day contract kept", L.S.whs[26].area === 2000 && posts.some(x => /rent26=2000/.test(x.body) && /terms26=30/.test(x.body)) && mine.st === "done", posts.map(x => x.body).join(" | "));
+  check("Y the plan's warehouse step left to the team's size", theirs.st === "skipped" && /you set the Dusseldorf warehouse to 2,000 m²/.test(theirs.why), JSON.stringify(theirs));
+  check("Y the calculator gets the size", await p.evaluate(() => (window.__ff.data().whUser || {}).Dusseldorf?.m2 === 2000));
+  check("Y the Bot tab shows it", /Dusseldorf 2,000 m²/.test(await p.evaluate(new Function(`return ${sh('[data-f="whsum"]')}.textContent`))));
+  await setWh("Dusseldorf", 1100);   // rounded up to 1500: space given back
+  await p.waitForFunction(() => (window.__ff.bot.run.steps.find(s => /^you:wh:.*:1500:/.test(s.id)) || {}).state === "done", null, {timeout: 30000});
+  L = await server();
+  check("Y set lower: 1500 m2 (whole 500 steps), space given back", L.S.whs[26].area === 1500 && L.log.some(x => x.m === "POST" && /rent26=1500/.test(x.body || "")), "area " + L.S.whs[26].area);
+  await p.evaluate(new Function(`${sh('[data-wh="del"]')}.click()`));
+  check("Y let the calculator decide again", !(await memOf(p)).whUser && /the calculator decides/.test(await p.evaluate(new Function(`return ${sh('[data-f="whsum"]')}.textContent`))));
+  check("Y no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // Z: the calculator's heads-up: the market report's fee and the game's news go out each day, the plan's alerts show on every tab
+  const {ctx, p, errs} = await open("", MEM, "&fee=50000");
+  const d0 = await p.evaluate(() => window.__ff.data());
+  check("Z the report fee read from the Media screen", d0.reportFee === 50000, String(d0.reportFee));
+  await fetch(BASE + "/day?d=6&fee=250000&news=" + encodeURIComponent("Day 9: the Market Report fee goes up to 250,000 EUR per day"));
+  await p.waitForFunction(() => window.__ff.data().day === 6 && window.__ff.data().reportFee === 250000, null, {timeout: 30000}).catch(() => {});
+  const d1 = await p.evaluate(() => window.__ff.data());
+  check("Z the new fee goes out the next day", d1.reportFee === 250000 && d1.reportFeeDay === 6, String(d1.reportFee));
+  check("Z the game's news line goes out with its day", (d1.events || []).some(e => e.day === 9 && /250,000 EUR per day/.test(e.text)), JSON.stringify(d1.events));
+  check("Z no dashboard lines taken as news", !(d1.events || []).some(e => /Cash in Bank|Cost - /.test(typeof e === "string" ? e : e.text)));
+  const alerts = [{id: "ev:report9", kind: "event", day: 9, text: "Day 9 (in 3 days): the Market Report fee goes up to 250,000 EUR per day"}];
+  await p.evaluate(pl => window.__ff.plan(pl), {...only(s => s.section === "marketing"), day: 6, alerts});
+  await click(p, '[data-tab="live"]'); await p.waitForTimeout(300);
+  const heads = () => p.evaluate(new Function(`return ${sh('[data-f="heads"]')}.innerText`));
+  check("Z the heads-up shows on the Live tab", /Heads-up[\s\S]*250,000 EUR per day/.test(await heads()), await heads());
+  await click(p, '[data-a="hush"]'); await p.waitForTimeout(200);
+  check("Z Hide hides it, remembered", !(await heads()).trim() && ((await memOf(p)).hushed || []).includes("ev:report9"));
+  const L = await server();
+  check("Z the report's buy link never opened", !L.log.some(x => /MKT_REPORT/.test((x.cmd || "") + (x.q || ""))));
+  check("Z no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 await b.close();

@@ -43,7 +43,7 @@ const reset = (o = {}) => {
       {id: 1990, tpe: "RTL", type: "TX", what: "Retail Rental Change Cologne. Rental Fee : 45 EUR / Day From 100 (30-day Contract ) To 150 m2 (Daily Contract)", who: ME, asked: 5, status: "Requested"},
       {id: 1991, tpe: "RTL", type: "PO", what: "Finished Goods Purchase Seller : VFG2 Hot Chocolate 1000 Unit @14 EUR Terms of Payment : Cash For : Hamburg Retail", who: MATE, asked: 5, status: "Requested"},
       {id: 1700, tpe: "RTL", type: "TX", what: "Retail Rental Change Berlin. Rental Fee : 52 EUR / Day From 200 To 250 m2", who: ME, asked: 3, status: "Requested"}],
-    nextTx: 2000, approved: [], cancelled: [], noScript: !!o.noscript, approveFail: o.approvefail || "", slow: o.slow || 0};   // slow: the next list screens are refused, as if the player had just clicked one
+    nextTx: 2000, approved: [], cancelled: [], noScript: !!o.noscript, approveFail: o.approvefail || "", slow: o.slow || 0, fee: o.fee || 0, news: ""};   // slow: the next list screens are refused, as if the player had just clicked one
   if (o.so) {
     S.sos.unshift(so(701, {product: "P1", qty: 4000, due: 8, ourBid: 13.5, bids: [["FF", 13.5, 1], ["TGED", 14.2]], status: "In Progress", req: 3, result: 4}),
       so(702, {product: "P2", qty: 2000, kind: "fixed", maxBid: null, each: 14, due: 7, status: "In Progress", allocated: 500, req: 4, result: null}));
@@ -63,7 +63,7 @@ reset();
 const page = body => `<!doctype html><html><head><meta charset="utf-8"></head><body>${body}</body></html>`;
 const opts = (k, cur) => `<option value="">${NAMES[k]}</option>` + TIERS.map(t => `<option value="${t}"${cur == t ? " selected" : ""}>${t.toLocaleString("en")}</option>`).join("");
 const used = lc => Math.round(Object.entries(S.wstock[lc] || {}).reduce((a, [k, q]) => a + q*DIM[k], 0) + S.machines.filter(m => m.lc == lc).reduce((a, m) => a + MACH[m.mac].m2, 0));
-const dash = () => `<div id="KPI_DAY____">${S.day} / ${S.maxDay}</div>
+const dash = () => `<div id="KPI_DAY____">${S.day} / ${S.maxDay}</div>${S.news ? `<div class="news_box"><div>${S.news}</div></div>` : ""}
 <div>Cash in Bank</div><div>${Math.round(S.cash).toLocaleString("en")}</div><div>Overdraft Used</div><div>${S.od}</div><div>Delinquent Payouts</div><div>0</div>
 <div>Cost - Americano</div><div>7.43</div><div>Cost - Hot Chocolate</div><div>12.52</div><div>Cost - Bubble Milk Te...</div><div>13.48</div>
 <div id="RTL">${Object.entries(S.shops).filter(([, s]) => s.area > 0).map(([ac, s]) => `<div class="kpi_title">${s.name} Retail</div><ul>${["P1", "P2", "P3"].map(p => `<li>${NAMES[p]} @ 20 <span class="right">${S.stock[ac][p].toLocaleString("en")}</span></li>`).join("")}<li>Space utilization (40%) ${Math.round(Object.values(S.stock[ac]).reduce((a, b) => a + b, 0)*0.005)} / ${s.area}</li></ul>`).join("")}</div>
@@ -143,7 +143,8 @@ const MENU = {
   retail_vendor: () => `<div class="vendor-box"><div>VFG1 Vendor 1</div><div>Americano 10 EUR Hot Chocolate 13 EUR Bubble Milk Tea 16 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=1">Procure Finished Goods</a></div>
     <div class="vendor-box"><div>VFG2 Vendor 2</div><div>Americano 11 EUR Hot Chocolate 14 EUR Bubble Milk Tea 17 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=2">Procure Finished Goods</a></div>`,
   warehouse_vendor: () => `<div class="vendor-box"><div>VRM3 Vendor 3</div><div>Plastic Cup 1 EUR Straw 0.6 EUR Coffee 3 EUR Chocolate 5 EUR Milk Tea 8 EUR</div><a href="ms_sure_learner?cmd=BUY_RM&loctype=WHS&vc=3">Procure Raw Materials</a></div>`,
-  retail_media: () => `<div class="ag"><div>MA Media A</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MA">Set Marketing Expense</a></div><div class="ag"><div>MB Media B</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MB">Set Marketing Expense</a></div>`,
+  retail_media: () => `<div class="ag"><div>MA Media A</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MA">Set Marketing Expense</a></div><div class="ag"><div>MB Media B</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MB">Set Marketing Expense</a></div>
+    ${S.fee ? `<div class="rep"><div>Market Report</div><div>Fee : ${S.fee.toLocaleString("en")} EUR / Day</div><a href="ms_sure_learner?cmd=MKT_REPORT_BUY">Buy Report</a></div>` : ""}`,
   b2b: () => `<div id="SlideTableMODE_TRANSACTIONB2B_IN">${offer(12, "Cafe X", "P1", 3000, "<span>Each : </span>14 EUR <br>", `<a href="ms_sure_learner?cmd=B2B_DEAL&amp;id=12&amp;ret=row12"><span>Deal</span></a>`)}
     ${offer(13, "Hotel Y", "P2", 2000, "<span>Max bid price allowed : </span>15.5 EUR<br><span>Minimum bidders : </span>2<br>", `<a href="ms_sure_learner?cmd=B2B_BID&amp;id=13&amp;ret=row13"><span>Bid</span></a>`, "<li>Bid Result Day<span><b>7</b></span></li>")}
     ${offer(14, "Shop Z", "P1", 1000, "<span>Each : </span>13 EUR <br>", `<a href="ms_sure_learner?cmd=B2B_DEAL&amp;id=14&amp;ret=row14"><span>Deal</span></a>`)}
@@ -260,9 +261,9 @@ http.createServer((req, res) => {
     if (u.pathname === "/dash") return send(dash());
     if (u.pathname === "/calc/") return send(REAL_CALC ? fs.readFileSync(process.env.CALC_FILE || new URL("../calc/index.html", import.meta.url), "utf8")   // /reset?calc=real: the real calculator (CALC_FILE: another copy of it)
       : fs.readFileSync(new URL("./calc-stub.html", import.meta.url), "utf8").replace("<head>", `<head><script>window.STUB = ${JSON.stringify({old: STUB === "old", locked: STUB === "locked"})}</script>`));
-    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash"), noscript: q.get("noscript") === "1", approvefail: q.get("approvefail") || "", slow: +q.get("slow") || 0}); return send("ok"); }
+    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash"), noscript: q.get("noscript") === "1", approvefail: q.get("approvefail") || "", slow: +q.get("slow") || 0, fee: +q.get("fee") || 0}); return send("ok"); }
     if (u.pathname === "/log") return send(JSON.stringify({log, S}), "application/json");
-    if (u.pathname === "/day") { S.day = +q.get("d"); if (q.get("offers")) for (const k in S.offers) S.offers[k] = "open"; return send("ok"); }   // offers=1: the day's offers are open again
+    if (u.pathname === "/day") { S.day = +q.get("d"); if (q.get("offers")) for (const k in S.offers) S.offers[k] = "open"; if (q.get("fee")) S.fee = +q.get("fee"); if (q.get("news")) S.news = q.get("news"); return send("ok"); }   // offers=1: the day's offers are open again; fee=, news=: the market report's fee, a news line
     if (u.pathname === "/m") { log.push({t: Date.now(), m: "GET", x: q.get("x")}); return send(page(MENU[q.get("x")]())); }
     if (u.pathname === "/table_record") {
       const now = Date.now(), early = now - lastList < LIST_MS || S.slow > 0; lastList = now;
