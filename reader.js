@@ -3,10 +3,17 @@
      within about a second, that day's sales a second or two later. Paste it again any time: it restarts cleanly and remembers
      the game setup, so it starts in seconds. It only reads, unless you start Auto-click or the Bot (each off until you start it). */
   if (window.__ff && window.__ff.stop) window.__ff.stop();
-  document.getElementById("ff-reader-box")?.remove();
-  const V = 4, BUILD = "v9", GAP = 900, CLICK = 1500;   // the game blocks fast clicks: page reads at least GAP ms apart, clicks in Configuration CLICK ms
+  document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
+  const V = 4, BUILD = "v10", GAP = 900, CLICK = 1500;   // the game blocks fast clicks: page reads at least GAP ms apart, clicks in Configuration CLICK ms
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;   // the calculator mode the bookmark was made for (Mode 12i or Mode 14), set by loader.js
-  const log = m => console.log("%c[FF] " + m, "color:#B4451C;font-weight:bold");
+  /* what happened, kept in this browser (the last 400 lines, across restarts) for Copy report in the Bot tab */
+  const LOGK = "ff-reader-log:" + location.host;
+  let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
+  const log = m => {
+    console.log("%c[FF] " + m, "color:#B4451C;font-weight:bold");
+    LOG.push([Date.now(), TAG, String(m).slice(0, 400)]); if (LOG.length > 400) LOG = LOG.slice(-400);
+    try { localStorage.setItem(LOGK, JSON.stringify(LOG)); } catch (e) {}
+  };
   const toNum = s => s == null ? null : +String(s).replace(/[^\d.]/g, "");
   const dom = h => new DOMParser().parseFromString(h, "text/html");
   const text = h => dom(h).body.textContent.replace(/\s+/g, " ");
@@ -385,26 +392,96 @@
   };
 
   /* 5. Hand the data over: straight to the calculator when this tab was opened from it (or the bot opened it), else by Copy data */
-  const link = {state: window.opener ? "looking" : "none", origin: "*", ackAt: 0, helloAt: 0, sentAt: 0, win: null};
+  const link = {state: window.opener ? "looking" : "none", via: window.opener ? "opener" : "", origin: "*", ackAt: 0, helloAt: 0, sentAt: 0, win: null, locked: false};
   const SELF = [...document.scripts].map(s => s.src).filter(s => /\/reader\.js(\?|$)/.test(s)).pop() || "";
   const CALC = SELF ? new URL("calc/", SELF).href : "";   // the calculator next to this reader, for the bot to open
   const calcWin = () => link.win && !link.win.closed ? link.win : window.opener && !window.opener.closed ? window.opener : null;
   const toCalc = m => { try { const w = calcWin(); if (w) { w.postMessage(m, link.origin); return true; } } catch (e) {} return false; };
   const hello = () => { link.helloAt = Date.now(); link.origin = "*"; toCalc({ff: "hello", v: V, mode: TAG}); };
-  const openCalc = () => {   // from a click (Start): the calculator in its own tab, linked to this one
-    if (!CALC || calcWin() === link.win && link.win) return false;
-    let w = null; try { w = window.open(CALC, "ff-calc-" + (TAG || "game")); } catch (e) {}
-    if (!w) return false;
-    link.win = w; link.state = "looking"; link.helloAt = Date.now(); log("Opened the FF calculator: unlock it there if it asks, and it links to this tab."); return true;
+  /* The calculator inside this tab (bottom left): no pop-up to allow, no tab to switch to, and it stays awake with the game in
+     front. It has its own storage on this game's site, so a locked one asks for the team passcode once here (Remember this
+     device keeps it). A calculator that doesn't answer in here (an older one, or a page that can't hold it) opens in its own
+     tab instead, and the next Start goes straight to a tab for a while. */
+  const CB = {host: null, root: null, frame: null, at: 0, loadAt: 0, heard: 0, locked: false, pin: "", reloadAt: 0};   // pin: Show or Hide pressed; else it shows only while locked
+  try { CB.pin = localStorage.getItem("ff-calc-open") === "1" ? "show" : ""; } catch (e) {}
+  const FRAME = CALC ? CALC + "?embed=1" + (TAG ? "&mode=" + encodeURIComponent(TAG) : "") : "";
+  const wantTab = () => mem.calcTab === "you" || (+mem.calcTab || 0) > Date.now();   // "you": Own tab was pressed; a time: the calculator didn't answer in here lately
+  const dropBox = () => { CB.host?.remove(); Object.assign(CB, {host: null, root: null, frame: null, heard: 0, locked: false}); if (link.via === "frame") { link.win = null; link.via = ""; } };
+  const boxPaint = () => {
+    if (!CB.root) return;
+    const on = link.state === "linked" && link.via === "frame", show = CB.pin ? CB.pin === "show" : CB.locked && !on;
+    CB.root.querySelector(".c").classList.toggle("f", !show);
+    CB.root.querySelector('[data-f="t"]').textContent = on ? "FF calculator ✓ linked" : CB.locked ? "FF calculator: type the team passcode, tick Remember this device" : "FF calculator: opening…";
+    CB.root.querySelector('[data-c="fold"]').textContent = show ? "Hide" : "Show";
   };
+  const embedCalc = () => {
+    if (!FRAME || stopped) return false;
+    if (CB.frame && link.via === "frame" && calcWin()) return true;   // already here
+    dropBox();
+    const h = document.createElement("div"); h.id = "ff-calc"; h.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483646";
+    const r = h.attachShadow({mode: "open"});
+    r.innerHTML = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.c{background:#FAFBF8;border:2px solid #B4451C;border-radius:8px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+      .h{display:flex;align-items:center;gap:6px;background:#B4451C;color:#fff;padding:5px 8px}.h b{flex:1;font-weight:700}.h button{border:1px solid #fff;background:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer}
+      .c{width:min(464px,calc(100vw - 32px))}.c.f{width:auto;max-width:calc(100vw - 32px)}.w{overflow:hidden}.c.f .w{width:0;height:0}
+      iframe{display:block;border:0;width:min(460px,calc(100vw - 36px));height:min(620px,calc(100vh - 120px));background:#fff}</style>
+      <div class="c"><div class="h"><b data-f="t"></b><button data-c="tab" title="Open the calculator in its own tab instead">Own tab</button><button data-c="fold"></button></div><div class="w"><iframe title="FF calculator" allow="clipboard-read; clipboard-write"></iframe></div></div>`;
+    document.body.appendChild(h);
+    const f = r.querySelector("iframe");
+    Object.assign(CB, {host: h, root: r, frame: f, at: Date.now(), loadAt: 0, heard: 0, locked: false});
+    f.addEventListener("load", () => { let blank = false; try { blank = f.contentWindow.location.href === "about:blank"; } catch (e) {} if (CB.frame !== f || blank) return; CB.loadAt = Date.now(); hello(); });   // an older calculator only answers a hello
+    r.addEventListener("click", e => {
+      const b = e.target.closest("button[data-c]"); if (!b) return;
+      if (b.dataset.c === "fold") { CB.pin = r.querySelector(".c").classList.contains("f") ? "show" : "hide"; try { localStorage.setItem("ff-calc-open", CB.pin === "show" ? "1" : "0"); } catch (err) {} boxPaint(); }
+      if (b.dataset.c === "tab") { mem.calcTab = "you"; save(); log("The calculator opens in its own tab from now on (Use it inside this tab, in the Live tab, brings it back)."); openTab(); paint(); }
+    });
+    f.src = FRAME;
+    link.win = f.contentWindow; link.via = "frame"; link.state = "looking"; link.helloAt = Date.now(); link.locked = false;
+    boxPaint(); log("Opened the FF calculator inside this tab (bottom left)."); return true;
+  };
+  const openTab = () => {   // the calculator in its own tab, linked to this one: from a click, or when pop-ups are allowed for this game
+    if (!CALC) return false;
+    if (link.via === "tab" && calcWin() === link.win && link.win) return true;
+    let w = null; try { w = window.open(CALC, "ff-calc-" + (TAG || "game")); } catch (e) {}
+    if (!w) { log("Chrome blocked the calculator's tab (a pop-up)."); return false; }
+    dropBox(); link.win = w; link.via = "tab"; link.state = "looking"; link.helloAt = Date.now(); link.locked = false;
+    log("Opened the FF calculator in its own tab: unlock it there if it asks, and it links to this tab."); return true;
+  };
+  const linkCalc = click => {   // Start, Run by itself, or Open the calculator here
+    if (!CALC || link.state === "linked") return false;
+    if (wantTab() && (openTab() || click)) return link.via === "tab";
+    return embedCalc();
+  };
+  const frameMute = () => {   // the calculator inside this tab never answered
+    log("The calculator inside this tab didn't answer" + (CB.loadAt ? " (an older calculator, or this page can't hold it)" : " (it didn't load)") + ": trying its own tab.");
+    dropBox(); mem.calcTab = Date.now() + 6*3600e3; save();   // the next Start goes straight to a tab
+    if (!openTab()) { link.state = window.opener ? "looking" : "none"; link.via = window.opener ? "opener" : ""; BOT.note = "The calculator didn't answer inside this tab, and Chrome blocked its own tab. Press Start again (or Open the calculator in the Live tab): it opens in its own tab."; log(BOT.note); }
+    paint();
+  };
+  const calcWhy = () => link.state === "linked" ? ""
+    : link.via === "frame" ? (CB.locked ? "the calculator at the bottom left is locked: type the team passcode there and tick Remember this device (once on this computer)" : "the calculator inside this tab is still opening")
+    : link.locked ? "the calculator tab is locked: type the team passcode there and tick Remember this device"
+    : link.via === "opener" && calcWin() ? "looking for the FF calculator that opened this tab"
+    : calcWin() ? "the calculator tab hasn't answered yet: open it once so it loads" : CALC ? "no calculator yet: press Start, or Open the calculator in the Live tab" : "no calculator: open the game with Go live in the calculator, or paste a plan";
   const onMsg = e => {
     if (!calcWin() || e.source !== calcWin() || !e.data) return;
     if (e.data.ff === "plan") { const bad = takePlan(e.data, "calculator"); if (bad) log("Bot: " + bad); return; }   // today's plan, for the Bot tab
-    if (e.data.ff !== "ack") return;
+    if (e.data.ff !== "ack" && e.data.ff !== "calcReady") return;
+    if (link.via === "frame") CB.heard = Date.now();
+    if (e.data.locked) {   // the calculator is waiting for the team passcode: it takes nothing until then
+      if (!link.locked || (link.via === "frame" && !CB.locked)) log("The calculator is locked: waiting for the team passcode there.");
+      if (link.via === "frame" && !CB.locked && CB.pin === "hide") CB.pin = "";   // newly locked: it shows, so the passcode can go in
+      link.locked = true; if (link.via === "frame") CB.locked = true;
+      if (link.state === "linked") link.state = "looking";
+      boxPaint(); paint(); return;
+    }
+    if (link.locked) log("The calculator is unlocked.");
+    link.locked = false; CB.locked = false;
+    if (e.data.ff === "calcReady") { hello(); boxPaint(); paint(); return; }   // ready (loaded, or just unlocked): link now
     const was = link.state;
     link.origin = e.origin && e.origin !== "null" ? e.origin : "*"; link.state = "linked"; link.ackAt = Date.now();
-    if (was !== "linked") { log("Linked to the FF calculator."); if (ready) send(); if (BOT.on) toCalc({ff: "botHello", v: 1}); for (const m of Object.values((BOT.days[today()] || {}).reports || {})) toCalc(m); }
-    paint();
+    if (was !== "linked") { log("Linked to the FF calculator" + (link.via === "frame" ? " inside this tab." : link.via === "tab" ? " in its own tab." : ".")); if (link.via === "frame" && typeof mem.calcTab === "number") { mem.calcTab = 0; save(); } if (/calculator/.test(BOT.note)) BOT.note = "";
+      if (ready) send(); if (BOT.on) toCalc({ff: "botHello", v: 1}); for (const m of Object.values((BOT.days[today()] || {}).reports || {})) toCalc(m); }
+    boxPaint(); paint();
   };
   window.addEventListener("message", onMsg);
   const send = () => {   // at once; a burst of changes goes out as one message (on the next beat)
@@ -1489,7 +1566,7 @@
     for (const j of jobs) { if (!go()) break; botSay(`Day ${day}: reading the game's order screens…`); await quiet(j, "Bot prep"); }
     checkExpect(); BOT.prepDay = day; BOT.prepping = false; paint();
   };
-  const botSay = m => { if (BOT.say !== m) { BOT.say = m; paint(); } };
+  const botSay = m => { if (BOT.say !== m) { BOT.say = m; if (/^Waiting for the calculator plan for day \d+\. /.test(m)) log("Bot: " + m); paint(); } };   // a wait with a reason goes in the log
   const canRun = s => !!RUN[s.sec] && !!ACTS[s.sec] && ACTS[s.sec].includes(s.act);   // price and unknown steps never start another pass
   const ask = () => { if (link.state === "linked" && Date.now() - BOT.askAt > 5000) { BOT.askAt = Date.now(); toCalc({ff: "getPlan"}); } };   // a plan now, not after the next update
   const botLoop = async () => {
@@ -1508,7 +1585,8 @@
       const since = lap.day === day ? Math.max(lap.full || 0, lap.sales || 0, lap.read || 0) : 0, waited = Date.now() - readyAt;   // a plan made from this day's sales; else after 8 s the day's newest
       if (!p || (p.from !== "pasted" && p.got < since && waited < 8000)) {
         if (waited > 3000) ask();
-        if (!BOT.prepping || waited >= 8000) botSay(`Waiting for the calculator plan for day ${day}${link.state === "linked" || waited < 8000 ? "" : " (not linked: unlock the calculator tab, or open the game with Go live there, or paste a plan)"}.`);
+        if (!BOT.prepping || waited >= 8000) { const why = link.state === "linked" ? waited < 30000 ? "" : `the calculator is linked but sent no plan for today: ${link.via === "frame" ? "show it (bottom left)" : "open its tab"} to see why` : waited < 8000 && !link.locked ? "" : calcWhy();
+          botSay(`Waiting for the calculator plan for day ${day}.${why ? " " + why[0].toUpperCase() + why.slice(1) + "." : ""}`); }
         await sleep(150); continue;
       }
       const maxAge = (num((p.limits || {}).maxPlanAgeSec) ?? 90)*1000;   // an old plan: ask for a fresh one first (its checks still guard it after 6 s)
@@ -1524,12 +1602,13 @@
     }
   };
   const spin = () => { BOT.loop = botLoop().catch(e => botStop("Problem: " + e.message, false, e.message)).finally(() => { BOT.loop = null; if (BOT.on && !stopped) spin(); else paint(); }); };
-  const botStart = () => {
+  const botStart = click => {
     if (BOT.on || stopped) return;
     Object.assign(BOT, {on: true, fails: 0, cut: false, prepDay: 0, startAt: Date.now(), note: "", say: "Starting…", askAt: 0}); log(BOT.dry ? "Bot on, practice: nothing is sent." : "Bot on."); paint();
     if (ready && $id("MENU2_B2Bincm")) quiet(readOffers, "B2B offers").then(deliver);   // the calculator plans B2B steps from the offers' numbers
     if (link.state === "linked") toCalc({ff: "botHello", v: 1});
-    else if ((BOT.plans[today()] || {}).from !== "pasted" && openCalc()) BOT.note = "Opened the calculator in a new tab: unlock it there if it asks. Its plan comes back here.";   // a pasted plan runs without it
+    else if (link.win && calcWin() === link.win) hello();   // ours is still opening (or locked): no second one
+    else if ((BOT.plans[today()] || {}).from !== "pasted" && linkCalc(!!click) && link.via === "tab") BOT.note = "Opened the calculator in its own tab: unlock it there if it asks. Its plan comes back here.";   // a pasted plan runs without it
     if (!BOT.loop) spin();   // one loop at a time: a quick Stop and Start keeps the one still running
   };
   /* Check the screens: every screen the bot uses, read now and checked for the boxes it fills in. It sends nothing */
@@ -1601,7 +1680,7 @@
     const r = BOT.run && BOT.run.day === d ? BOT.run : null, p = r ? r.plan : BOT.plans[d] || last || null, steps = r ? r.steps : p ? p.steps : [];
     const top = `<p class="m">${esc(BOT.say || "Off. Press Start: each day it carries out the calculator's plan.")}</p>${BOT.note ? `<p class="w">${esc(BOT.note)}</p>` : ""}${BOT.warn ? `<p class="w">${esc(BOT.warn)}</p>` : ""}`
       + (BOT.check.length ? `<p style="margin-top:6px"><b>Screen check</b>${BOT.checkAt && !BOT.checking ? ` <span class="k">${esc(new Date(BOT.checkAt).toLocaleTimeString())}</span>` : ""}</p><table>${BOT.check.map(c => `<tr><td>${esc(c.name)}<div class="k">${esc(c.detail)}</div></td><td class="st ${c.ok ? "done" : "failed"}">${c.ok ? "ready" : "no"}</td></tr>`).join("")}</table>` : "");
-    if (!p) return top + `<p class="m">No plan yet. ${link.state === "linked" ? "The calculator sends one after each update." : CALC ? "Start opens the calculator and links it to this tab (or paste a plan below)." : "Open the game with Go live in the calculator, or paste a plan below."}</p>`;
+    if (!p) return top + `<p class="m">No plan yet. ${link.state === "linked" ? "The calculator sends one after each update." : CALC ? "Start opens the calculator at the bottom left of this tab and links it (or paste a plan below)." : "Open the game with Go live in the calculator, or paste a plan below."}</p>`;
     const limit = r ? r.limit : (num((p.limits || {}).botSec) ?? (p.stage === "prep" ? 150 : 30))*1000;
     const time = !r ? "" : r.took != null ? `Day ${r.day} took ${sec(r.took)}${r.took > limit ? ` (over the ${sec(limit)} target)` : ""}.` : `Day ${r.day}: ${sec(Date.now() - r.t0)} so far.`;
     const money = k => { const cap = capOf(p, k); return `${esc(k)} ${n(Math.round((r && r.used[k]) || 0))} of ${cap == null ? "no budget" : n(Math.round(cap))}`; };
@@ -1668,7 +1747,7 @@
       <div class="stopbar" data-f="stopbar"></div>
       <div class="pane" data-t="today" data-f="today"></div><div class="pane" data-t="auto" data-f="auto"></div><div class="pane" data-t="stores" data-f="stores"></div><div class="pane" data-t="stock" data-f="stock"></div><div class="pane" data-t="checks" data-f="checks"></div>
       <div class="pane" data-t="bot"><button class="a big go" data-bot="go" data-f="botgo"></button>
-      <div class="r"><button class="a" data-bot="check" data-f="botcheck">Check the screens</button><label class="k"><input type="checkbox" data-bot="dry" data-f="botdry"> Practice: do everything but send</label></div><div class="r"><label class="k"><input type="checkbox" data-bot="auto" data-f="botauto"> Run by itself: start now and every time the game opens (this computer)</label></div><div role="status" data-f="bot"></div>
+      <div class="r"><button class="a" data-bot="check" data-f="botcheck">Check the screens</button><button class="a" data-bot="report">Copy report</button><label class="k"><input type="checkbox" data-bot="dry" data-f="botdry"> Practice: do everything but send</label></div><div class="r"><label class="k"><input type="checkbox" data-bot="auto" data-f="botauto"> Run by itself: start now and every time the game opens (this computer)</label></div><div role="status" data-f="bot"></div>
       <details><summary class="k">Paste a plan (for testing)</summary><textarea data-bot="paste" spellcheck="false" placeholder="{&quot;ff&quot;:&quot;plan&quot;,&quot;v&quot;:1,&quot;day&quot;:1,&quot;reserve&quot;:0,&quot;budgets&quot;:{&quot;marketing&quot;:5000},&quot;steps&quot;:[{&quot;id&quot;:&quot;d1:mkt&quot;,&quot;section&quot;:&quot;marketing&quot;,&quot;action&quot;:&quot;set&quot;,&quot;target&quot;:&quot;Berlin&quot;,&quot;price&quot;:5000,&quot;agency&quot;:&quot;MA&quot;,&quot;cost&quot;:5000}]}"></textarea><div class="r"><button class="a" data-bot="load">Load</button></div></details></div>
       <p class="m" role="status" data-f="msg"></p>
       <div class="r"><button class="a p" data-a="copy">Copy data</button><button class="a" data-a="read">Read now</button><button class="a" data-a="setup">Update setup</button></div></div>`);
@@ -1677,7 +1756,10 @@
     const put = (f, html) => { const el = root.querySelector(f); if (el && el.__h !== html) { el.__h = html; el.innerHTML = html; } };
     if (mini) { put(".pill", `FF live${TAG ? " " + esc(TAG) : ""} · day ${day} ${ok ? "✓" : ""}${AC.on ? " · ● auto" : ""}${BOT.on ? " · ● bot" : ""}`); return; }
     put('[data-f="title"]', `FF live${TAG ? " · Mode " + esc(TAG) : ""} · day ${day}${D && D.maxDay ? "/" + esc(D.maxDay) : ""}`);
-    put('[data-f="link"]', ok ? '<span class="ok">Linked ✓</span> The calculator follows the game live.' : link.state === "looking" ? "Looking for the FF calculator that opened this tab…" : "Not linked: click <b>Copy data</b> and paste it in the calculator (or use <b>Go live</b> there).");
+    put('[data-f="link"]', (ok ? `<span class="ok">Linked ✓</span> The calculator follows the game live${link.via === "frame" ? " (it's at the bottom left of this tab)" : ""}.`
+      : link.state === "looking" ? esc(calcWhy().replace(/^./, c => c.toUpperCase())) + "…"
+      : `Not linked. ${CALC ? '<button class="a" data-a="calc">Open the calculator</button> or click' : "Click"} <b>Copy data</b> and paste it in the calculator (or use <b>Go live</b> there).`)
+      + (CALC && (link.via === "tab" || mem.calcTab === "you") ? ' <button class="a" data-a="calchere">Use it inside this tab</button>' : ""));
     put('[data-f="speed"]', !ready || !lap.day || lap.day !== (D && D.day) ? "" : ok && lap.sent ? `Day ${esc(lap.day)} was on the calculator ${after(lap.sent - lap.seen)}${lap.sales ? `, its sales ${after(lap.sales - lap.seen)}` : ""}.`
       : lap.read ? `Day ${esc(lap.day)}: sales read ${after(lap.read - lap.seen)}.` : "");
     put('[data-f="info"]', (D && D.at ? `Last change ${esc(new Date(D.at).toLocaleTimeString())} · ${(D.stores || []).length} stores · sales: ${esc(D.salesFrom || "not found yet")}` : "Starting…") + ` · reader ${BUILD}`);
@@ -1700,7 +1782,7 @@
     for (const k of ["read", "setup"]) root.querySelector(`[data-a="${k}"]`).disabled = busy === "setup";
   }
   root.addEventListener("change", e => {
-    if (e.target.dataset && e.target.dataset.bot === "auto") { mem.auto = !!e.target.checked; save(); log(mem.auto ? "Bot: runs by itself from now on, every time the game opens." : "Bot: starts only when you press Start."); if (mem.auto && !BOT.dry) botStart(); paint(); return; }
+    if (e.target.dataset && e.target.dataset.bot === "auto") { mem.auto = !!e.target.checked; save(); log(mem.auto ? "Bot: runs by itself from now on, every time the game opens." : "Bot: starts only when you press Start."); if (mem.auto && !BOT.dry) botStart(true); paint(); return; }
     if (e.target.dataset && e.target.dataset.bot === "dry") { if (!BOT.on && !BOT.loop) BOT.dry = !!e.target.checked; paint(); return; }   // not while a pass is still finishing
     const bk = e.target.dataset && e.target.dataset.b2b;
     if (bk === "mode") { B2B.mode = e.target.value === "all" ? "all" : "smart"; b2bSave(); if (B2B.at) b2bCheck().catch(() => {}); paint(); return; }
@@ -1713,7 +1795,9 @@
   });
   root.addEventListener("click", async e => {
     const bb = e.target.closest("button[data-bot]");
-    if (bb) { const k = bb.dataset.bot; if (k === "go") { if (BOT.on) botStop("Stopped."); else botStart(); } if (k === "stop") botStop("Stopped."); if (k === "load") loadPaste(); if (k === "check") botCheck().catch(e => log("Bot check: " + e.message)); paint(); return; }
+    if (bb) { const k = bb.dataset.bot; if (k === "go") { if (BOT.on) botStop("Stopped."); else botStart(true); } if (k === "stop") botStop("Stopped."); if (k === "load") loadPaste(); if (k === "check") botCheck().catch(e => log("Bot check: " + e.message));
+      if (k === "report") { const okc = await copyText(ffReport()); note = okc ? "Copied the report: paste it in the FF project chat." : "Couldn't copy here. On a computer, type copy(__ff.report()) in the Console."; noteAt = Date.now(); }
+      paint(); return; }
     const c = e.target.closest("[data-ac]");
     if (c && c.tagName !== "INPUT") {
       const k = c.dataset.ac;
@@ -1731,17 +1815,27 @@
     if (k === "stop") { acStop(); stop(); log("Stopped. Paste the reader again to restart."); return; }
     if (k === "read") { wantFull = true; tell("Reading everything again…"); return; }
     if (k === "setup") { wantSetup = "asked"; tell("The game setup is read next…"); return; }
-    if (k === "copy" && D) {
-      const json = JSON.stringify(D);
-      try { await navigator.clipboard.writeText(json); tell("Copied. Paste it into the FF calculator."); }
-      catch (err) {
-        const ta = document.createElement("textarea"); ta.value = json; ta.readOnly = true; ta.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px"; document.body.appendChild(ta);
-        ta.focus(); ta.select(); try { ta.setSelectionRange(0, json.length); } catch (_) {}
-        let ok = false; try { ok = document.execCommand("copy"); } catch (_) {} ta.remove();
-        tell(ok ? "Copied. Paste it into the FF calculator." : "Couldn't copy here. Use Go live in the calculator instead, or on a computer type copy(__ffdata) in the Console.");
-      }
-    }
+    if (k === "calc") { linkCalc(true); paint(); return; }
+    if (k === "calchere") { mem.calcTab = 0; save(); log("The calculator opens inside this tab again."); embedCalc(); paint(); return; }
+    if (k === "copy" && D) tell(await copyText(JSON.stringify(D)) ? "Copied. Paste it into the FF calculator." : "Couldn't copy here. Use Go live in the calculator instead, or on a computer type copy(__ffdata) in the Console.");
   });
+  const copyText = async text => {   // the clipboard, else the old way (some pages don't allow the clipboard)
+    try { await navigator.clipboard.writeText(text); return true; } catch (err) {}
+    const ta = document.createElement("textarea"); ta.value = text; ta.readOnly = true; ta.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px"; document.body.appendChild(ta);
+    ta.focus(); ta.select(); try { ta.setSelectionRange(0, text.length); } catch (_) {}
+    let ok = false; try { ok = document.execCommand("copy"); } catch (_) {} ta.remove(); return ok;
+  };
+  /* Copy report: what the bot and the calculator link are doing, and the kept log, to paste in the project chat when something goes wrong */
+  const ffReport = () => {
+    const t = x => x ? new Date(x).toLocaleTimeString() : "no", r = BOT.run, cnt = k => r.steps.filter(s => s.state === k).length;
+    return [`FF report · reader ${BUILD} · Mode ${TAG || "?"} · ${new Date().toString()}`,
+      `Page: ${location.host}${location.pathname} · ${document.visibilityState} · day ${today() || "?"}${D && D.maxDay ? "/" + D.maxDay : ""} · first read ${ready ? "done" : "not done yet"}`,
+      `Calculator: ${link.state}${link.via ? " via " + link.via : ""}${link.locked ? ", locked" : ""}, last answer ${t(link.ackAt)}${CB.frame ? `, in this tab: loaded ${t(CB.loadAt)}, heard ${t(CB.heard)}` : ""}${wantTab() ? ", own tab preferred" : ""}${CALC ? "" : ", no calculator address"}`,
+      `Bot: ${BOT.on ? "on" : "off"}${BOT.dry ? " (practice)" : ""}${mem.auto ? ", runs by itself" : ""} · ${BOT.say || "-"}${BOT.note ? " · " + BOT.note : ""}${BOT.warn ? " · " + BOT.warn : ""}`,
+      `Plans: ${Object.values(BOT.plans).sort((a, b) => a.day - b.day || a.got - b.got).slice(-5).map(p => `day ${p.day} ${p.from} ${t(p.got)} (${(p.steps || []).length} steps)`).join(", ") || "none"}`,
+      r ? `Last run: day ${r.day}${r.took != null ? ", took " + sec(r.took) : ", running"}: ${cnt("done")} done, ${cnt("skipped")} skipped, ${cnt("failed")} failed${r.steps.filter(s => s.state === "failed").map(s => ` · ${s.id}: ${s.why}`).join("")}` : "Last run: none",
+      "", "Log:", ...LOG.slice(-150).map(([at, m, x]) => `${new Date(at).toLocaleString()}${m ? " [" + m + "]" : ""} ${x}`)].join("\n");
+  };
 
   /* 7. The reading, one thing at a time, most urgent first: the setup, a full read, the new day, then one slower page now and then */
   const touched = () => { lastInput = Date.now(); };
@@ -1753,7 +1847,7 @@
     busy = ""; paint();
   };
   async function next(){   // false: nothing to read right now
-    if (newGame) { newGame = false; mem = mem.gapFloor ? {gapFloor: mem.gapFloor} : {}; save(); D = null; ready = false; dayRead = 0; sentBody = lastSig = ""; b2bSeries = salesWait = null; stale = ""; lap = {day: 0};
+    if (newGame) { newGame = false; mem = Object.fromEntries(["gapFloor", "auto", "calcTab"].filter(k => mem[k] != null).map(k => [k, mem[k]])); save();   // a new game keeps Run by itself D = null; ready = false; dayRead = 0; sentBody = lastSig = ""; b2bSeries = salesWait = null; stale = ""; lap = {day: 0};
       BIDS = {rows: {}, team: ""}; bidsSave(); WEB.rows = []; WEB.post = null; log("A new game: starting over."); }
     if (!seenDay) return false;   // the day counter isn't on screen
     if (!mem.setup || wantSetup) {
@@ -1812,8 +1906,11 @@
     const now = Date.now(), m = (($id("KPI_DAY____") || {}).textContent || "").match(/(\d+)\s*\/\s*(\d+)/), d = m ? +m[1] : 0;
     if ((d && d !== kpiDay) || now - lookAt >= 1000) { kpiDay = d || kpiDay; look(now); }
     if (sendDue && now - lastSent >= 300) send();
-    if (link.state !== "none" && !calcWin()) { link.state = "none"; paint(); }   // the calculator's page was closed
-    if (link.state === "looking" && now - link.helloAt > 5000) hello();
+    if (link.state !== "none" && !calcWin()) { link.state = "none"; link.via = ""; link.locked = false; log("The calculator was closed."); paint(); }   // the calculator's page was closed
+    if (link.state === "looking" && now - link.helloAt > (link.via === "frame" && (CB.locked || !CB.heard) ? 1500 : 5000)) hello();
+    if (link.via === "frame" && CB.frame && !CB.heard && now - (CB.loadAt || CB.at) > (CB.loadAt ? 2500 : 12000)) frameMute();   // loaded but silent, or never loaded
+    if (link.via === "frame" && CB.frame && CB.heard && !CB.locked && link.state === "looking" && now - CB.heard > 20000 && now - CB.reloadAt > 60000) {   // it stopped answering: load it again
+      Object.assign(CB, {reloadAt: now, at: now, loadAt: 0, heard: 0}); log("The calculator inside this tab stopped answering: loading it again."); CB.frame.src = FRAME; }
     if (link.state === "linked" && link.ackAt < link.sentAt && now - link.sentAt > 8000) { link.state = "looking"; hello(); paint(); }   // the calculator stopped answering
     if (link.state === "linked" && ready && now - lastSent > 15000) send();   // a beat: the calculator knows this tab is still here, even when the game is paused
   }
@@ -1827,9 +1924,9 @@
     document.removeEventListener("keydown", onKey, true);
     AC.on = false; AC.picking = false; unglow(); BOT.on = false; BOT.cut = true; document.removeEventListener("mouseover", onOver, true); document.removeEventListener("click", onPick, true);
     for (const w of waits) w.go(); waits.clear();
-    host?.remove(); host = null; if (window.__ff && window.__ff.timer === timer) delete window.__ff;
+    host?.remove(); host = null; CB.host?.remove(); if (window.__ff && window.__ff.timer === timer) delete window.__ff;
   }
-  window.__ff = {timer, stop, read: () => { wantFull = true; }, data: () => D, bot: BOT, plan: p => takePlan(p, "pasted"), orders: async () => { await readOrders(true); if ($id("MENU2_web1")) await readWeb(true); }};   // orders: read the order lists now (else between days)
+  window.__ff = {timer, stop, read: () => { wantFull = true; }, data: () => D, bot: BOT, report: ffReport, link: () => ({...link, win: !!link.win, frame: !!CB.frame, heard: CB.heard, locked: CB.locked || link.locked}), plan: p => takePlan(p, "pasted"), orders: async () => { await readOrders(true); if ($id("MENU2_web1")) await readWeb(true); }};   // orders: read the order lists now (else between days)
   if (window.opener) hello();
   if (self.origin === "null") msg = "This tab was opened in a sandbox, so it can't read the game. Open your game normally, run the reader there and use Copy data.";
   paint();
@@ -1838,8 +1935,8 @@
   while (!ready && !stopped) await sleep(500);
   if (mem.auto && !stopped && !BOT.on) {   // Run by itself: no click needed. A game opened from the calculator's Go live links to it first
     for (let t = 0; window.opener && link.state === "looking" && t < 16 && !stopped; t++) await sleep(500);
-    if (!stopped && !BOT.on) { BOT.dry = false; log("Bot: started by itself (Run by itself is on)."); botStart();
-      if (BOT.on && link.state !== "linked" && !link.win) { BOT.note = "Started by itself, but Chrome blocked the calculator window. Click the blocked pop-up sign at the right of the address bar and choose Always allow, then press Stop and Start once (or open the game from the calculator's Go live)."; paint(); } }
+    if (!stopped && !BOT.on) { BOT.dry = false; log("Bot: started by itself (Run by itself is on)."); botStart(false);
+      if (BOT.on && link.state !== "linked" && !calcWin()) { BOT.note = "Started by itself, but couldn't open the calculator. Press Start once."; log(BOT.note); paint(); } }
   }
   return D;
 })();

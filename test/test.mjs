@@ -105,15 +105,17 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("C no page errors", !errs.length, errs.join("; "));
   await p.screenshot({path: OUT + "/bot-check.png"}); await ctx.close();
 }
-{ // D: Start opens the calculator, links, and runs its plan
+{ // D: Start opens the calculator inside the game tab (no pop-up), links, and runs its plan
   const {ctx, p, errs} = await open();
-  const pop = ctx.waitForEvent("page", {timeout: 15000});
+  let pops = 0; ctx.on("page", () => pops++);
   await click(p, '[data-bot="go"]');
-  const calc = await pop; await calc.waitForLoadState();
   await runDone(p);
+  const calc = p.frames().find(f => f.url().includes("/calc/"));
   const S = await steps(p), L = await server(), linked = await p.evaluate(() => document.getElementById("ff-live").shadowRoot.querySelector('[data-f="link"]').innerText);
   for (const s of S) console.log("  ", s.sec, s.t, s.pr || "", "=>", s.st, "|", s.why);
-  check("D calculator opened at /calc/", calc.url().endsWith("/calc/"));
+  check("D calculator inside the game tab, no pop-up", !!calc && /\/calc\/\?embed=1&mode=12i$/.test(calc.url()) && pops === 0, calc && calc.url());
+  const shown = await p.evaluate(() => { const r = document.getElementById("ff-calc").shadowRoot; return {t: r.querySelector('[data-f="t"]').textContent, folded: r.querySelector(".c").classList.contains("f")}; });
+  check("D calculator box folded and says linked", shown.folded && /linked/.test(shown.t), JSON.stringify(shown));
   check("D linked", /Linked/.test(linked), linked);
   check("D plan ran", L.S.mkt.MA[17] === 2500 && L.S.stock[13].P3 === 3000 && L.S.offers[12] === "in", JSON.stringify({mkt: L.S.mkt.MA, st: L.S.stock[13], o: L.S.offers}));
   await p.waitForTimeout(1500);
@@ -129,6 +131,38 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("D runEnd sent", got.some(m => m.ff === "runEnd" && m.day === 5));
   check("D bought once", (await server()).log.filter(x => x.m === "POST" && x.cmd === "BUY_FG").length === 1);
   check("D no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // D2: an older calculator doesn't answer inside the game tab: it opens in its own tab, links and runs; the next Start goes straight there
+  const {ctx, p, errs} = await open("", MEM, "&stub=old");
+  const pop = ctx.waitForEvent("page", {timeout: 20000});
+  await click(p, '[data-bot="go"]');
+  const calc = await pop; await calc.waitForLoadState();
+  await runDone(p);
+  const L = await server(), st = await p.evaluate(() => window.__ff.link()), box = await p.evaluate(() => !!document.getElementById("ff-calc"));
+  check("D2 fell back to its own tab", calc.url().endsWith("/calc/") && st.via === "tab" && st.state === "linked" && !box, JSON.stringify(st));
+  check("D2 plan ran", L.S.mkt.MA[17] === 2500 && L.S.stock[13].P3 === 3000, JSON.stringify({mkt: L.S.mkt.MA, st: L.S.stock[13]}));
+  const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")).calcTab);
+  check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
+  const rep = await p.evaluate(() => window.__ff.report());
+  check("D2 report has the link and the log", /reader v10/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // D3: a locked calculator inside the game tab: it shows, the bot says to type the passcode, and runs once it's unlocked
+  const {ctx, p, errs} = await open("", MEM, "&stub=locked");
+  let pops = 0; ctx.on("page", () => pops++);
+  await click(p, '[data-bot="go"]');
+  await p.waitForFunction(() => window.__ff.link().locked, null, {timeout: 15000});
+  await p.waitForTimeout(9000);   // past the 8 s the bot waits before it says why
+  const calc = p.frames().find(f => f.url().includes("/calc/"));
+  const a = await p.evaluate(() => { const r = document.getElementById("ff-calc").shadowRoot; return {t: r.querySelector('[data-f="t"]').textContent, folded: r.querySelector(".c").classList.contains("f"), say: window.__ff.bot.say, run: !!window.__ff.bot.run}; });
+  check("D3 locked: the calculator shows and asks for the passcode", !a.folded && /passcode/.test(a.t) && /passcode/.test(a.say) && !a.run && pops === 0, JSON.stringify(a));
+  await calc.evaluate(() => window.unlock());
+  await runDone(p);
+  const L = await server(), st = await p.evaluate(() => window.__ff.link()), folded = await p.evaluate(() => document.getElementById("ff-calc").shadowRoot.querySelector(".c").classList.contains("f"));
+  check("D3 unlocked: linked, folded away, plan ran", st.state === "linked" && st.via === "frame" && folded && L.S.mkt.MA[17] === 2500, JSON.stringify({st, mkt: L.S.mkt.MA}));
+  check("D3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 { // E: the game refuses an order
@@ -234,9 +268,9 @@ const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerT
   check("M no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // N: Run by itself: nothing clicked, the bot starts after the first read, opens the calculator and runs its plan
+{ // N: Run by itself: nothing clicked, the bot starts after the first read, opens the calculator inside the game tab and runs its plan
   const {ctx, p, errs} = await open("", {...MEM, auto: true});
-  let calc = null; for (let t = 0; t < 60 && !calc; t++) { calc = ctx.pages().find(x => x.url().endsWith("/calc/")); if (!calc) await p.waitForTimeout(250); }
+  let calc = null; for (let t = 0; t < 60 && !calc; t++) { calc = p.frames().find(x => x.url().includes("/calc/")); if (!calc) await p.waitForTimeout(250); }
   await runDone(p);
   const L = await server(), on = await p.evaluate(() => window.__ff.bot.on), box = await p.evaluate(new Function(`return ${sh('[data-f="botauto"]')}.checked`));
   check("N started by itself and opened the calculator", !!calc && on);

@@ -1,8 +1,9 @@
-// The real calculator (calc/index.html) with the bot on the stand-in game: Start opens the calculator, it makes the day's plan from
-// the game data, and the bot runs it. Prints every step and what came back; fails on page errors, a price command or a step the bot
-// doesn't know. Run: node test/server.mjs 8791 reader.js &   then   node test/e2e-calc.mjs 8791
+// The real calculator (calc/index.html) with the bot on the stand-in game: Start opens the calculator (inside the game tab, or in its
+// own tab when it doesn't answer in there), it makes the day's plan from the game data, and the bot runs it. Prints every step and
+// what came back; fails on page errors, a price command or a step the bot doesn't know. EXPECT=tab when the calculator can't work
+// inside the game tab yet. Run: node test/server.mjs 8791 reader.js &   then   node test/e2e-calc.mjs 8791
 import { chromium } from "playwright";
-const BASE = "http://localhost:" + (process.argv[2] || 8790), PASS = "e2e-test-pass";
+const BASE = "http://localhost:" + (process.argv[2] || 8790), PASS = "e2e-test-pass", EXPECT = process.env.EXPECT || "frame";
 const PRODUCTS = [["Americano", "Coffee"], ["Hot Chocolate", "Chocolate"], ["Bubble Milk Tea", "Milk Tea"]].map(([name, ing]) =>
   ({name, price: 20, cost: 8, dim: 0.005, expire: 0, allow: "Yes", bom: [{q: 1, name: "Plastic Cup"}, {q: 2, name: "Straw"}, {q: 1, name: ing}]}));
 const MEM = {setup: {setupDay: 1, modules: ["RTL", "B2B"], lead: 1, machines: [{name: "Machine A", price: 300000, cap: 10000, m2: 200, staff: 2}, {name: "Machine B", price: 200000, cap: 6000, m2: 150, staff: 1}],
@@ -30,10 +31,16 @@ for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash
   await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && window.__ff.data().menus, null, {timeout: 60000});
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(new Function(`${sh('[data-tab="bot"]')}.click()`));
-  const pop = ctx.waitForEvent("page", {timeout: 15000});
+  let pop = null; ctx.on("page", x => { pop = x; x.on("pageerror", e => cerrs.push(e.message)); });
   await p.evaluate(new Function(`${sh('[data-bot="go"]')}.click()`));
-  const calc = await pop; calc.on("pageerror", e => cerrs.push(e.message));
-  await calc.waitForLoadState();
+  let calc = null, path = "";   // inside the game tab once it says it's locked there; else the tab it falls back to
+  for (let t = 0; t < 80 && !calc; t++) {
+    if ((await p.evaluate(() => window.__ff.link())).locked) { calc = p.frames().find(f => f.url().includes("/calc/")); path = "frame"; }
+    else if (pop) { calc = pop; path = "tab"; await calc.waitForLoadState(); }
+    else await p.waitForTimeout(250);
+  }
+  check(`${name}: the calculator opened ${EXPECT === "frame" ? "inside the game tab" : "in its own tab"}`, path === EXPECT, path || "neither");
+  if (!calc) { await ctx.close(); continue; }
   await calc.waitForFunction(() => typeof Sec !== "undefined" && Sec.access === "locked", null, {timeout: 20000}).catch(() => {});
   const un = await calc.evaluate(pass => unlockTeam(pass, false), PASS);
   check(`${name}: calculator unlocked with the test passcode`, un === "ok", un);
