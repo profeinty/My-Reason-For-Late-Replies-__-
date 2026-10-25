@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v36 (web) -->
+<!-- FF calculator v37 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -2298,7 +2298,8 @@ function normalize(s){
 }
 /* two modes, each with its own numbers, ticks, game link and team copy. Mode 12i is the default and keeps the team's existing numbers. */
 const MODES = ["12i", "14"], OLDMODE = {"13i": "12i", "16": "14"};   // earlier names of the same two modes
-let MODE = (() => { try { const m = localStorage.getItem(KEY + "-mode3") || OLDMODE[localStorage.getItem(KEY + "-mode2")]; return MODES.includes(m) ? m : "12i"; } catch (e) { return "12i"; } })();
+const EMBED = (() => { try { const q = new URLSearchParams(location.search); return {on: q.get("embed") === "1", mode: q.get("mode") || ""}; } catch (e) { return {on: false, mode: ""}; } })();   // calc/?embed=1&mode=12i inside the game tab
+let MODE = (() => { const u = MODES.includes(EMBED.mode) ? EMBED.mode : OLDMODE[EMBED.mode]; if (u) return u; try { const m = localStorage.getItem(KEY + "-mode3") || OLDMODE[localStorage.getItem(KEY + "-mode2")]; return MODES.includes(m) ? m : "12i"; } catch (e) { return "12i"; } })();
 const SK = (m = MODE) => m === "12i" ? KEY : `${KEY}-m${m}`;
 try { for (const sfx of ["", "-done", "-game"]) { const old = localStorage.getItem(`${KEY}-m16${sfx}`); if (old != null && localStorage.getItem(`${KEY}-m14${sfx}`) == null) localStorage.setItem(`${KEY}-m14${sfx}`, old); } } catch (e) {}   // Mode 16's numbers are Mode 14's now
 /* ---------- team lock ----------
@@ -2424,6 +2425,12 @@ async function setAccess(a){
   }
   paintSec();
   if (a === "open" && Sec.lock) reopen();
+  if (a !== "checking" && a !== was) calcReady();
+}
+/* tell the game page this calculator sits in (an iframe) or came from (window.opener) that it is up, and whether it is locked */
+function calcReady(){
+  const x = {ff: "calcReady", app: "ffcalc", mode: MODE, locked: locked()};
+  for (const w of [window.parent !== window ? window.parent : null, window.opener]) if (w) try { w.postMessage(x, "*"); } catch (e) {}
 }
 /* what arrived sealed while this view was locked */
 function reopen(){ if (Sync.planSnap) onPlan(Sync.planSnap); if (Sync.tickSnap) onTicks(Sync.tickSnap); }
@@ -3443,12 +3450,16 @@ function onBot(m, msg){
 const BOTMSG = new Set(["botHello", "getPlan", "step", "runEnd", "abort"]);
 window.addEventListener("message", e => {
   const msg = e.data; if (!msg || typeof msg !== "object" || (msg.ff !== "hello" && msg.ff !== "data" && !BOTMSG.has(msg.ff))) return;
-  if (locked()) return;   // a locked device takes no game data
   const tagOf = x => MODES.includes(x) ? x : OLDMODE[x] || "", tag = tagOf(msg.mode) || tagOf(msg.data?.mode);
   // only a game tab this page opened, or (after this page reloads) a tab on that mode's game address
   const m = MODES.find(k => LV[k].win && e.source === LV[k].win) || MODES.find(k => originOf(LV[k].url) && e.origin === originOf(LV[k].url) && (!tag || tag === k))
-    || (window.opener && e.source === window.opener ? tag || MODE : "");   // opened by the bot's Start button in the game tab
+    || (window.opener && e.source === window.opener ? tag || MODE : "")   // opened by the bot's Start button in the game tab
+    || (window.parent !== window && e.source === window.parent ? tag || MODE : "");   // or set inside the game tab as an iframe
   if (!m) return;
+  if (locked()) {   // a locked device takes no game data, but says so, so the bot can ask for the passcode
+    try { e.source.postMessage({ff: "ack", app: "ffcalc", mode: m, locked: true}, e.origin && e.origin !== "null" ? e.origin : "*"); } catch (err) {}
+    return;
+  }
   LV[m].win = e.source; LV[m].lastAt = Date.now(); if (e.origin && e.origin !== "null") LV[m].origin = e.origin;
   const reply = x => { try { e.source.postMessage(x, e.origin && e.origin !== "null" ? e.origin : "*"); } catch (err) {} };
   if (BOTMSG.has(msg.ff)) { onBot(m, msg); return; }
