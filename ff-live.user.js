@@ -15,6 +15,6 @@
   window.__FF_MODE = /^1[0-9]i?$/i.test(mode) ? mode : "12i";   // the game's address names its mode: /12i/, /14/...
   const s = document.createElement("script");
   s.charset = "utf-8";
-  s.src = "https://profeinty.github.io/My-Reason-For-Late-Replies-__-//reader.js?t=" + Date.now();   // always the newest reader
+  s.src = "https://profeinty.github.io/Secret-FF-Doomsday-Project/reader.js?t=" + Date.now();   // always the newest reader
   (document.head || document.documentElement).appendChild(s);
 })();
