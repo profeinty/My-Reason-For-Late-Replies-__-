@@ -54,5 +54,7 @@ Web Market: it buys a listing only if its number, product, amount and price matc
 
 Safety: it never changes a selling price (the reader refuses the game's price commands), never opens a cancel-rental link, never shrinks a shop or warehouse unless the plan says release (and leaves giving up a whole location to you), checks a B2B offer's number before accepting or bidding, and counts an order whose answer got lost as bought so it is never sent twice.
 
+If you use without permission and still complain(like shitty ui,etc.) just see what gaeto can do, only complain necessary bugs and give advice that's useful not ui fixing or some shi.
+
 ## 📄 License
 MIT © Profeinty
