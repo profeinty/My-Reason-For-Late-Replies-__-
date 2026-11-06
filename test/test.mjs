@@ -1,5 +1,4 @@
-// FF bot on the stand-in game: real run, practice run, screen check, Start opening the calculator, a game error,
-// the B2B bid history, shipping won orders, machines, e-commerce, approving the bot's own requests, and prices never touched.
+//only i know
 import { chromium } from "playwright";
 const BASE = "http://localhost:" + (process.argv[2] || 8790), OUT = process.argv[3] || ".";
 const PRODUCTS = [["Americano", "Coffee"], ["Hot Chocolate", "Chocolate"], ["Bubble Milk Tea", "Milk Tea"]].map(([name, ing]) =>
@@ -39,7 +38,7 @@ const open = async (fail = "", mem = MEM, extra = "") => {   // extra: more of t
   p.on("pageerror", e => errs.push(e.message)); p.on("console", m => logs.push(m.text()));
   await p.goto(BASE + "/game.html");
   await p.evaluate(() => { window.__FF_MODE = "12i"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
-  await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && window.__ff.data().menus, null, {timeout: 60000});   // the first whole read is done
+  await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && window.__ff.data().menus, null, {timeout: 60000});   
   await p.waitForTimeout(500);
   await p.evaluate(new Function(`${sh('[data-tab="bot"]')}.click()`));
   return {ctx, p, errs, logs};
@@ -50,10 +49,10 @@ const server = async () => (await fetch(BASE + "/log")).json();
 const click = (p, sel) => p.evaluate(new Function(`${sh(sel)}.click()`));
 const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerText`));
 const memOf = p => p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")) || {});
-const ME = "FF Player", botTx = L => L.S.tx.filter(x => x.id >= 2000 && x.who === ME && !/Price/.test(x.what));   // the bot's own requests on the Transactions screens
+const ME = "FF Player", botTx = L => L.S.tx.filter(x => x.id >= 2000 && x.who === ME && !/Price/.test(x.what));
 const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} ${x.who === ME ? "us" : x.who} ${x.status}`).join(" | ");
 
-{ // A: the real run of a pasted plan
+{ 
   const {ctx, p, errs} = await open();
   console.log("A plan:", await p.evaluate(pl => window.__ff.plan(pl), PLAN) || "taken");
   const t = Date.now(); await click(p, '[data-bot="go"]'); await runDone(p);
@@ -99,7 +98,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("A no page errors", !errs.length, errs.join("; "));
   await p.screenshot({path: OUT + "/bot-run.png"}); await ctx.close();
 }
-{ // B: practice: nothing is sent
+{ 
   const {ctx, p, errs} = await open();
   await p.evaluate(pl => window.__ff.plan(pl), PLAN);
   await p.evaluate(new Function(`const c = ${sh('[data-bot="dry"]')}; c.checked = true; c.dispatchEvent(new Event("change", {bubbles: true, composed: true}));`));
@@ -112,7 +111,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("B no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // C: check the screens
+{ 
   const {ctx, p, errs} = await open();
   await click(p, '[data-bot="check"]');
   await p.waitForFunction(() => !window.__ff.bot.checking && window.__ff.bot.check.length >= 13, null, {timeout: 60000});
@@ -131,7 +130,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("C no page errors", !errs.length, errs.join("; "));
   await p.screenshot({path: OUT + "/bot-check.png"}); await ctx.close();
 }
-{ // D: Start opens the calculator inside the game tab (no pop-up), links, and runs its plan
+{ 
   const {ctx, p, errs} = await open();
   let pops = 0; ctx.on("page", () => pops++);
   await click(p, '[data-bot="go"]');
@@ -153,7 +152,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("D reports: machine skip", r("d5:buy:Machine A").status === "skip");
   check("D reports: stock done 3000, 48000", r("d5:vendor:Hamburg:Bubble Milk Tea").status === "done" && r("d5:vendor:Hamburg:Bubble Milk Tea").qty === 3000 && r("d5:vendor:Hamburg:Bubble Milk Tea").amount === 48000);
   check("D reports: marketing done 2500", r("d5:mkt:Cologne:MA").status === "done" && r("d5:mkt:Cologne:MA").amount === 2500);
-  // one pass reports each step once (a pass that starts 15 s after the first tries its skipped steps again and repeats the reports)
+  
   const pass1 = got.slice(0, got.findIndex(m => m.ff === "runEnd") + 1).filter(m => m.ff === "step" && m.status === "done"), took = await p.evaluate(() => window.__ff.bot.run.took);
   check("D each step reported once in a pass", pass1.length === new Set(pass1.map(m => m.id)).size, `pass took ${took} ms`);
   check("D runEnd sent", got.some(m => m.ff === "runEnd" && m.day === 5));
@@ -161,7 +160,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("D no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // D2: an older calculator doesn't answer inside the game tab: it opens in its own tab, links and runs; the next Start goes straight there
+{ 
   const {ctx, p, errs} = await open("", MEM, "&stub=old");
   const pop = ctx.waitForEvent("page", {timeout: 20000});
   await click(p, '[data-bot="go"]');
@@ -177,12 +176,12 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // D3: a locked calculator inside the game tab: it shows, the bot says to type the passcode, and runs once it's unlocked
+{ 
   const {ctx, p, errs} = await open("", MEM, "&stub=locked");
   let pops = 0; ctx.on("page", () => pops++);
   await click(p, '[data-bot="go"]');
   await p.waitForFunction(() => window.__ff.link().locked, null, {timeout: 15000});
-  await p.waitForTimeout(9000);   // past the 8 s the bot waits before it says why
+  await p.waitForTimeout(9000);   
   const calc = p.frames().find(f => f.url().includes("/calc/"));
   const a = await p.evaluate(() => { const r = document.getElementById("ff-calc").shadowRoot; return {t: r.querySelector('[data-f="t"]').textContent, folded: r.querySelector(".c").classList.contains("f"), say: window.__ff.bot.say, run: !!window.__ff.bot.run}; });
   check("D3 locked: the calculator shows and asks for the passcode", !a.folded && /passcode/.test(a.t) && /passcode/.test(a.say) && !a.run && pops === 0, JSON.stringify(a));
@@ -193,7 +192,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("D3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // E: the game refuses an order
+{ 
   const {ctx, p, errs} = await open("BUY_FG");
   await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store" && s.target !== "Cologne" || s.section === "marketing"));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -204,7 +203,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   console.log("E pane:", (await pane(p)).slice(0, 400).replace(/\s+/g, " "));
   await ctx.close();
 }
-{ // F: cash on delivery: the dashboard cash doesn't move, the day still finishes
+{ 
   const {ctx, p, errs} = await open("COD");
   await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store" && s.target !== "Cologne" || s.section === "marketing"));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -214,7 +213,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("F no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // G: a plan that doesn't match the game's cash waits; a matching one then runs
+{ 
   const {ctx, p, errs} = await open();
   await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "marketing", {verify: {day: 5, cash: 900000, tol: 1000}}));
   await click(p, '[data-bot="go"]');
@@ -228,7 +227,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("G no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // H: release, a rent step that would shrink, a too-dear vendor, one B2B deal per product, an offer that's gone
+{ 
   const {ctx, p, errs} = await open();
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, steps: [
     {id: "h:rel", seq: 1, section: "rent_shop", action: "release", target: "Berlin", qty: 100, term: 30, qtyStep: 50, cost: 0},
@@ -254,7 +253,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("H no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // I: a buy cut under the bulk lot is sized and booked at the full price
+{ 
   const {ctx, p, errs} = await open();
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, budgets: {...PLAN.budgets, buy_store: 45000}, steps: [{id: "i:tier", seq: 1, section: "buy_store", action: "buy", target: "Hamburg", product: "Americano",
     qty: 5000, qtyMin: 3000, qtyMax: 5000, unitPrice: 10, unitPriceMax: 10.2, tierQty: 5000, unitPriceMaxBelowTier: 12, cost: 50000, must: true}]});
@@ -264,7 +263,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("I no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // J: an order whose answer is lost counts as bought (unsure), is not sent again, and stops nothing else
+{ 
   const {ctx, p, errs} = await open("E500:BUY_FG");
   await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store" && s.target === "Berlin" || s.section === "marketing" && s.target === "Berlin"));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -279,7 +278,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("J no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // M: the reader pasted again the same day remembers what the bot did
+{ 
   const {ctx, p, errs} = await open();
   const pl = only(s => s.id === "d5:vendor:Berlin:Americano" || s.id === "d5:mkt:Berlin:MA");
   await p.evaluate(pl => window.__ff.plan(pl), pl);
@@ -296,7 +295,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("M no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // N: Run by itself: nothing clicked, the bot starts after the first read, opens the calculator inside the game tab and runs its plan
+{ 
   const {ctx, p, errs} = await open("", {...MEM, auto: true});
   let calc = null; for (let t = 0; t < 60 && !calc; t++) { calc = p.frames().find(x => x.url().includes("/calc/")); if (!calc) await p.waitForTimeout(250); }
   await runDone(p);
@@ -307,7 +306,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("N no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // P: the B2B Sales Order list: every team's bid, each result, our team's name; the whole list after Load More
+{ 
   const {ctx, p, errs} = await open();
   const d1 = await p.evaluate(() => window.__ff.data());
   check("P first page read with the day", (d1.b2bBids || []).filter(r => r.so).length === 5 && d1.b2bOrders === undefined, JSON.stringify((d1.b2bBids || []).map(r => r.so)));
@@ -325,7 +324,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("P no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // Q: shipping won orders: a plan step first, then the bot's own (web order, then the earliest due), warehouse stock only, hidBatchData as the game's page builds it
+{ 
   const {ctx, p, errs} = await open("", MEM, "&so=1");
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, steps: [{id: "q:ship:702", seq: 1, section: "b2b", action: "ship", target: "702", product: "Hot Chocolate", cost: 0}]});
@@ -345,7 +344,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("Q no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // Q2: practice ships nothing; with rules.autoShip false the bot doesn't ship at all
+{
   const {ctx, p, errs} = await open("", MEM, "&so=1");
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(new Function(`const c = ${sh('[data-bot="dry"]')}; c.checked = true; c.dispatchEvent(new Event("change", {bubbles: true, composed: true}));`));
@@ -363,7 +362,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("Q2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // Q3: the game refuses the shipping: 2 failed shipments in a row stop the bot (like any 2 failed steps)
+{ 
   const {ctx, p, errs} = await open("B2BECM_SOS_ALLOC_FAST", MEM, "&so=1");
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, steps: []});
@@ -373,7 +372,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("Q3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // R: machines: buy as many as the floor space and the budget allow, one a submit; production order; what a machine makes is left to the user
+{ 
   const {ctx, p, errs} = await open("", MEM, "&wfg=1&cash=5000000");
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, budgets: {...PLAN.budgets, machine: 1300000}, steps: [
     {id: "r:A", seq: 1, section: "machine", action: "buy", target: "Machine A", qty: 7, where: "Dusseldorf", cost: 2100000},
@@ -398,7 +397,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("R no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // R2: production read each day: units made (the grading counts them), and each machine's status
+{ 
   const {ctx, p, errs} = await open("", MEM, "&mach=1");
   const d = await p.evaluate(() => window.__ff.data()), m = id => (d.ownMachines || []).find(x => x.id === id) || {};
   console.log("   machines:", JSON.stringify(d.ownMachines), "production:", String(JSON.stringify(d.production)).slice(0, 300));
@@ -408,7 +407,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("R2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // S: e-commerce: buy listings that match the plan (never over its price), post our own at the shop price only
+{ 
   const {ctx, p, errs} = await open("", MEM, "&wfg=1");
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, budgets: {...PLAN.budgets, ecom: 10000}, steps: [
     {id: "s:151", seq: 1, section: "ecom", action: "buy", target: "151", product: "Americano", qty: 500, price: 9.5, dest: "warehouse"},
@@ -435,7 +434,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("S no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // S2: a web post never takes stock that won B2B orders still need
+{
   const {ctx, p, errs} = await open("", MEM, "&so=1");
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, b2b: {rules: {autoShip: false}}, steps: [
@@ -449,7 +448,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("S2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // T: approvals with no approve script on the screen (the request the game's ✓ sends), and an approval the game refuses once is sent again
+{ 
   const {ctx, p, errs} = await open("", MEM, "&noscript=1&approvefail=once");
   await p.evaluate(pl => window.__ff.plan(pl), only(s => ["rent_shop", "buy_store", "marketing"].includes(s.section)));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -461,7 +460,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("T no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // T2: the game refuses every approval: the bot says which requests still wait, the steps still count, nothing is cancelled
+{ 
   const {ctx, p, errs} = await open("", MEM, "&approvefail=all");
   await p.evaluate(pl => window.__ff.plan(pl), only(s => ["rent_shop", "buy_store"].includes(s.section)));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -472,7 +471,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("T2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // T3: the next day, the same game: the screens are read again from their newest rows and the player is remembered
+{ 
   const {ctx, p, errs} = await open();
   await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store"));
   await click(p, '[data-bot="go"]'); await runDone(p);
@@ -486,7 +485,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("T3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // U: the game refuses list screens (the player clicked one just then): read again a moment later, nothing lost
+{ 
   const {ctx, p, errs} = await open("", MEM, "&slow=2");
   const d = await p.evaluate(() => window.__ff.data()), L0 = await server();
   check("U refused list screens read again", L0.log.filter(x => x.m === "SLOW").length === 2 && (d.b2bBids || []).length >= 3, JSON.stringify((d.b2bBids || []).length));
@@ -497,7 +496,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("U no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // V: a new day with the calculator linked: the B2B deal goes first, from the plan made with the day's offers, then the rest of the day
+{ 
   const {ctx, p, errs} = await open();
   await click(p, '[data-bot="go"]'); await runDone(p);
   const t0 = Date.now(); await fetch(BASE + "/day?d=6&offers=1");
@@ -513,7 +512,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("V no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // W: from 4/10 of the game (day 12 of 30) a fixed-price deal goes the moment the day changes, before the calculator's plan; one per product
+{ 
   const {ctx, p, errs} = await open("", MEM, "&wfg=1");
   await click(p, '[data-bot="go"]'); await runDone(p);
   for (let t = 0; t < 40 && (await server()).log.some(x => /^list:/.test(x.x || "") && x.t > Date.now() - 1500); t++) await p.waitForTimeout(250);   // the day's approvals done, as late in a real day
@@ -533,7 +532,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("W no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // W2: the same day with the instant grab turned off in the Bot tab: the deal comes from the calculator's plan
+{ 
   const {ctx, p, errs} = await open("", MEM, "&wfg=1");
   await click(p, '[data-bot="snap"]'); await click(p, '[data-bot="go"]'); await runDone(p);
   const t0 = Date.now(); await fetch(BASE + "/day?d=12&offers=1");
@@ -544,7 +543,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("W2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // W3: practice on day 12 only says which deal it would take
+{ 
   const {ctx, p, errs} = await open("", MEM, "&wfg=1");
   await click(p, '[data-bot="dry"]'); await click(p, '[data-bot="go"]'); await runDone(p);
   await fetch(BASE + "/day?d=12&offers=1");
@@ -554,7 +553,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("W3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // Y: the team sets a warehouse's size in the Bot tab: the bot keeps it at that size (more, or less) in place of the plan's warehouse step
+{ 
   const {ctx, p, errs} = await open();
   const setWh = (city, m2) => p.evaluate(new Function(`${sh('[data-wh="city"]')}.value = ${JSON.stringify(city)}; ${sh('[data-wh="m2"]')}.value = "${m2}"; ${sh('[data-wh="set"]')}.click();`));
   await setWh("Dusseldorf", 2000);
@@ -574,7 +573,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("Y no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
-{ // Z: the calculator's heads-up: the market report's fee and the game's news go out each day, the plan's alerts show on every tab
+{ 
   const {ctx, p, errs} = await open("", MEM, "&fee=50000");
   const d0 = await p.evaluate(() => window.__ff.data());
   check("Z the report fee read from the Media screen", d0.reportFee === 50000, String(d0.reportFee));
