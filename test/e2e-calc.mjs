@@ -18,7 +18,7 @@ for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash
   console.log(`\n== ${name}`);
   await (await fetch(BASE + "/reset?calc=real" + extra)).text();
   const ctx = await b.newContext({viewport: {width: 1300, height: 900}});
-  await ctx.addInitScript(m => { try { if (location.pathname === "/game.html") localStorage.setItem("ff-reader:" + location.host + ":12i", m); } catch (e) {} }, JSON.stringify(MEM));
+  await ctx.addInitScript(m => { try { if (location.pathname === "/game.html") localStorage.setItem("ff-reader:" + location.host + ":14", m); } catch (e) {} }, JSON.stringify(MEM));
   const c0 = await ctx.newPage();   // a test passcode for the calculator's lock, on this browser only (low rounds)
   await c0.goto(BASE + "/calc/");
   await c0.evaluate(async pass => { const salt = b64(crypto.getRandomValues(new Uint8Array(16))), key = await deriveTeamKey(pass, salt, 1000);
@@ -27,7 +27,7 @@ for (const [name, extra] of [["plain game", ""], ["orders, goods, machines, cash
   const p = await ctx.newPage(), errs = [], cerrs = [];
   p.on("pageerror", e => errs.push(e.message));
   await p.goto(BASE + "/game.html");
-  await p.evaluate(() => { window.__FF_MODE = "12i"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
+  await p.evaluate(() => { window.__FF_MODE = "14"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
   await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && window.__ff.data().menus, null, {timeout: 60000});
   await p.evaluate(() => window.__ff.orders());
   await p.evaluate(new Function(`${sh('[data-tab="bot"]')}.click()`));

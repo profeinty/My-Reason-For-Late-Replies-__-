@@ -6,7 +6,7 @@ const STUB = window.STUB || {}, game = window.parent !== window ? window.parent 
 window.got = []; const done = new Set(); let last = null, locked = !!STUB.locked;
 const ready = () => { if (!STUB.old && game) game.postMessage({ff: "calcReady", app: "ffcalc", locked}, "*"); };
 window.unlock = () => { locked = false; ready(); };
-const plan = d => ({ff: "plan", app: "ffcalc", v: 1, mode: "12i", source: "game", day: d.day, planId: "stub-d" + d.day, reserve: 100000,
+const plan = d => ({ff: "plan", app: "ffcalc", v: 1, mode: "14", source: "game", day: d.day, planId: "stub-d" + d.day, reserve: 100000,
   verify: {day: d.day, cash: d.cash, tol: 20000, cashMin: 300000}, budgets: {b2b: 0, machine: 0, buy_store: 100000, marketing: 20000}, floors: {Americano: 7.5},
   steps: [
     {id: `d${d.day}:b2b:accept:12`, seq: 1, section: "b2b", action: "accept", target: "12", product: "Americano", qty: 3000, price: 14, floor: 7.5, qtyMax: 5000, cost: 0},
@@ -17,8 +17,8 @@ addEventListener("message", e => {
   if (!e.data || !(e.source === window.opener || (!STUB.old && window.parent !== window && e.source === window.parent))) return;
   got.push(e.data);
   const reply = m => e.source.postMessage(m, "*"), ff = e.data.ff;
-  if (locked) { if (!STUB.old) reply({ff: "ack", app: "ffcalc", mode: "12i", locked: true}); return; }
-  if (ff === "hello" || ff === "data") reply({ff: "ack", app: "ffcalc", mode: "12i", ok: true});
+  if (locked) { if (!STUB.old) reply({ff: "ack", app: "ffcalc", mode: "14", locked: true}); return; }
+  if (ff === "hello" || ff === "data") reply({ff: "ack", app: "ffcalc", mode: "14", ok: true});
   if (ff === "data") last = e.data.data;
   if (ff === "step" && e.data.status === "done") done.add(e.data.id);
   if ((ff === "data" || ff === "botHello" || ff === "getPlan") && last) reply(plan(last));

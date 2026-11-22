@@ -12,7 +12,7 @@
 (() => {
   if (window.__ff) return;   // already running (the bookmark was clicked first)
   const mode = location.pathname.split("/").filter(Boolean)[0] || "";
-  window.__FF_MODE = /^1[0-9]i?$/i.test(mode) ? mode : "12i";   // the game's address names its mode: /12i/, /14/...
+  window.__FF_MODE = /^1[0-9]i?$/i.test(mode) ? mode : "14";   // the game's address names its mode: /14/...
   const s = document.createElement("script");
   s.charset = "utf-8";
   s.src = "https://profeinty.github.io/Secret-FF-Doomsday-Project/reader.js?t=" + Date.now();   // always the newest reader

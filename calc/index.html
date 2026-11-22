@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v38 (web) -->
+<!-- FF calculator v39 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -438,10 +438,10 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   <header class="top">
     <div class="brand">
       <span class="mark" aria-hidden="true">FF</span>
-      <div><h1>MonsoonSIM Calculator</h1><p class="eyebrow" id="modeName">Team FF · MonsoonSIM · Mode 12i</p></div>
+      <div><h1>MonsoonSIM Calculator</h1><p class="eyebrow" id="modeName">Team FF · MonsoonSIM · Mode 14</p></div>
     </div>
     <div class="src">
-      <div class="seg sm mode" id="modeSeg" role="group" aria-label="Calculator mode"><button type="button" data-mode="12i" aria-pressed="true">Mode 12i</button><button type="button" data-mode="14" aria-pressed="false">Mode 14</button></div>
+      <div class="seg sm mode" id="modeSeg" role="group" aria-label="Calculator mode"><button type="button" data-mode="14" aria-pressed="true">Mode 14</button></div>
       <span class="status"><span class="dot" id="srcDot"></span><span id="srcText">Not filled yet: using preset numbers.</span></span>
       <span class="team" id="team" role="status" hidden></span>
       <button type="button" class="primary" id="openImport">Paste game data</button>
@@ -1189,12 +1189,13 @@ function plan(S, sk, opt = {}){
   const odRoom = Math.max(0, n(g.odLimit)*clamp(n(g.odPct), 0, 100)/100*(st.odUse ?? 1) - n(g.odUsed));
   const emerg = n(g.delinq) > 0 || n(g.cash) < fixed*3;
   const keepFixed = fixed*st.reserve;
+  const b2bSh = n(g.b2bShare)*(keepFixed > 0 ? clamp((n(g.cash) - n(g.odUsed))/keepFixed - 0.5, 0.5, 1.5) : 1);   // B2B share moves with cash: half under the reserve, 1.5x from twice the reserve
   let cash = n(g.cash) - (emerg ? fixed : keepFixed) + odRoom;
 
   // B2B units we expect to win, and the B2B price. Making a unit for B2B is worth what it would cost from the vendor,
   // but never more than its B2B price (B2B from vendor stock that loses money isn't done at all).
-  const b2bU = P.map(p => n(p.b2bFc)*n(g.b2bShare)/100);
-  const takeOf = (j, x) => n(P[j].b2bFc)*(x >= CLR.from ? Math.max(CLR.share, n(g.b2bShare)) : n(g.b2bShare))/100;   // B2B units a day we expect to win on day x (more once the clearing starts)
+  const b2bU = P.map(p => n(p.b2bFc)*b2bSh/100);
+  const takeOf = (j, x) => n(P[j].b2bFc)*(x >= CLR.from ? Math.max(CLR.share, b2bSh) : b2bSh)/100;   // B2B units a day we expect to win on day x (more once the clearing starts)
   const b2bPrice = P.map(p => n(p.price)*n(g.b2bPricePct)/100);
   const priceOn = (j, x) => b2bPrice[j]*(x >= CLR.from ? 1 - CLR.cut : 1);   // what a B2B unit brings on day x (bids go lower while clearing)
   // what B2B can still take from today to the last deal day (as the cash plan counts it), and the average price it pays
@@ -1477,7 +1478,7 @@ function plan(S, sk, opt = {}){
     peakDay: pk.day, look, game: {day: flow.peak.day, m2: flow.peak.m2, need: up(ceil(flow.peak.m2*1.05), WSTEP)}};
   // what the clearing has to sell: goods still there on the last day, and the share of B2B it would take to sell them too
   const clearSold = P.map((_, j) => flow.days.reduce((s, x) => s + (x.day - tie.due >= CLR.from ? x.out[j] : 0), 0));
-  const clearNeed = P.map((_, j) => flow.left[j] > 0.5 ? (clearSold[j] > 0 ? Math.max(CLR.share, n(g.b2bShare))*(clearSold[j] + flow.left[j])/clearSold[j] : Infinity) : null);
+  const clearNeed = P.map((_, j) => flow.left[j] > 0.5 ? (clearSold[j] > 0 ? Math.max(CLR.share, b2bSh)*(clearSold[j] + flow.left[j])/clearSold[j] : Infinity) : null);
   wh.exact = ceil((wh.mach + wh.raw + wh.goods)*1.05);
   wh.need = up(wh.exact, WSTEP);   // rented in whole 500 m² steps
   const whRel = down(wh.have - wh.need, WSTEP);
@@ -1769,20 +1770,21 @@ const BID_MEMO = new Map();
 function bidModel(S, day){
   const H = bidsOf(S).slice(-300), key = day + "|" + JSON.stringify(H.map(h => [h.product, h.kind, h.maxBid, h.winPrice, h.ourBid, h.result, h.day, h.winner, h.bids]));
   if (BID_MEMO.has(key)) return BID_MEMO.get(key);
-  const obs = [], teams = {};
+  const obs = [], teams = {}, last = {};   // last: each product's lowest rival bid in its latest result ("": any product)
+  const seen = (p, r, d) => { for (const k of [p, ""]) if (!last[k] || d >= last[k].d) last[k] = {r, d}; };
   const T = (team, r, won) => { if (!team) return; const t = teams[team] = teams[team] || {team, rs: [], wins: 0}; if (r != null) t.rs.push(r); if (won) t.wins++; };
   for (const h of H) {
     const mx = n(h.maxBid); if (!(mx > 0) || h.kind === "fixed" || h.result === "void" || h.result === "open") continue;
     const w = Math.pow(0.5, Math.max(0, day - (n(h.day) || day))/10);   // a bid 10 days old counts half: teams change how they bid
     const rivals = (Array.isArray(h.bids) ? h.bids : []).filter(b => b && !b.us && n(b.price) > 0);
-    if (rivals.length) { const lo = rivals.reduce((a, b) => n(b.price) < n(a.price) ? b : a); obs.push({p: h.product, t: "x", r: n(lo.price)/mx, w}); for (const b of rivals) T(String(b.team || ""), n(b.price)/mx, b === lo && h.result !== "won" && h.result !== "cancelled"); }
-    else if (n(h.winPrice) > 0 && h.result !== "won") { obs.push({p: h.product, t: "x", r: n(h.winPrice)/mx, w}); T(String(h.winner || ""), n(h.winPrice)/mx, true); }
+    if (rivals.length) { const lo = rivals.reduce((a, b) => n(b.price) < n(a.price) ? b : a); obs.push({p: h.product, t: "x", r: n(lo.price)/mx, w}); seen(h.product, n(lo.price)/mx, n(h.day)); for (const b of rivals) T(String(b.team || ""), n(b.price)/mx, b === lo && h.result !== "won" && h.result !== "cancelled"); }
+    else if (n(h.winPrice) > 0 && h.result !== "won") { obs.push({p: h.product, t: "x", r: n(h.winPrice)/mx, w}); seen(h.product, n(h.winPrice)/mx, n(h.day)); T(String(h.winner || ""), n(h.winPrice)/mx, true); }
     else if ((h.result === "won" || h.result === "cancelled") && n(h.ourBid) > 0) obs.push({p: h.product, t: "gt", r: n(h.ourBid)/mx, w});
     else if (h.result === "lost" && n(h.ourBid) > 0) obs.push({p: h.product, t: "lt", r: n(h.ourBid)/mx, w});
   }
   const enough = L => L.reduce((s, o) => s + o.w, 0) >= 2.5;
   const by = {}; for (const p of S.P) { const L = obs.filter(o => o.p === p.name); if (enough(L)) by[p.name] = fitBids(L); }
-  const M = {by, all: enough(obs) ? fitBids(obs) : null, n: obs.length, ours: {won: H.filter(h => h.result === "won").length, lost: H.filter(h => h.result === "lost").length},
+  const M = {by, last, all: enough(obs) ? fitBids(obs) : null, n: obs.length, ours: {won: H.filter(h => h.result === "won").length, lost: H.filter(h => h.result === "lost").length},
     teams: Object.values(teams).map(t => { const r = t.rs.sort((a, b) => a - b); return {team: t.team, n: r.length, mid: r.length ? r[Math.floor(r.length/2)] : null, low: r.length ? r[0] : null, wins: t.wins}; })
       .sort((a, b) => b.wins - a.wins || b.n - a.n)};
   if (BID_MEMO.size > 20) BID_MEMO.clear();
@@ -1795,6 +1797,9 @@ function bidModel(S, day){
 function bidPick(M, b, o, R){
   const mx = n(o.maxBid), floor = b.floorEach, clr = R.clearing, cut = clr ? R.CLR.cut : R.st.bidCut;
   const F = M ? M.by[b.name] || M.all : null, plain = Math.max(floor, Math.floor(mx*(1 - cut)*100)/100);
+  const L = M && M.last && (M.last[b.name] || M.last[""]);   // the team's rule: 0.01 under the lowest rival bid of the last result (ties lose)
+  if (L && mx > 0) { const pr = Math.max(floor, Math.min(mx, Math.round(L.r*mx*100)/100 - 0.01));
+    return {price: +pr.toFixed(2), winP: null, how: "under", why: `0.01 under the lowest other team's bid in the last result (${Math.round(L.r*1000)/10}% of the max), never under the floor ${f2(floor)}.`}; }
   if (!F || !(mx > 0)) return {price: plain, winP: null, how: "cut",
     why: `${Math.round(cut*100)}% under the max bid${clr ? " (clearing the warehouse)" : ""}, never under the floor ${f2(floor)}; no bid history yet to read the other teams from.`};
   const basis = clr ? b.cashEach : b.unitCost, keep = clr ? b.holdEach : 0;
@@ -1880,21 +1885,22 @@ function stepsOf(S, X){
   }
   // space first: the warehouse, new stores, extra store space (before the stock lands)
   let whStep = null;
-  if (has.wh && R.wh.act === "rent") whStep = add({tick: "space:warehouse", op: "rentSpace", section: "rent_wh", target: {place: "warehouse"}, qty: R.wh.delta, qtyStep: R.steps.wh,
+  const BYHAND = true;   // the team opens stores and rents space by hand: no rent steps, nothing for a store not open yet
+  if (!BYHAND && has.wh && R.wh.act === "rent") whStep = add({tick: "space:warehouse", op: "rentSpace", section: "rent_wh", target: {place: "warehouse"}, qty: R.wh.delta, qtyStep: R.steps.wh,
     action: `Rent +${f0(R.wh.delta)} m² of warehouse (${f0(R.wh.have)} → ${f0(R.wh.after)} m², in ${f0(R.steps.wh)} m² steps).`, budget: Math.round(n(g.whRent)*R.wh.delta), perDay: true, budgetKey: "space",
     verify: {whM2: R.wh.after}, why: "Machines, raw materials and B2B stock need the room before they arrive."});
   const openStep = {}, spaceStep = {};
-  if (!rescue) for (const x of R.opened) openStep[x.c.name] = add({tick: `open:${x.c.name}`, op: "rentStore", section: "rent_shop", target: {city: x.c.name, store: `${x.c.name} Retail`}, qty: x.area, qtyStep: R.steps.store,
+  if (!rescue && !BYHAND) for (const x of R.opened) openStep[x.c.name] = add({tick: `open:${x.c.name}`, op: "rentStore", section: "rent_shop", target: {city: x.c.name, store: `${x.c.name} Retail`}, qty: x.area, qtyStep: R.steps.store,
     action: `Open a store in ${x.c.name}: rent ${f0(x.area)} m² and hire staff.`, budget: Math.round(x.setup), budgetKey: "stores", verify: {storeM2: x.area},
     why: `Earns about ${fk(x.profit)} by the end after rent and staff.`});
-  for (const x of R.space) if (x.act === "rent" && !x.isNew) spaceStep[x.c.name] = add({tick: `space:${x.c.name}`, op: "rentSpace", section: "rent_shop", target: {city: x.c.name, store: `${x.c.name} Retail`}, qty: x.delta, qtyStep: R.steps.store,
+  for (const x of R.space) if (!BYHAND && x.act === "rent" && !x.isNew) spaceStep[x.c.name] = add({tick: `space:${x.c.name}`, op: "rentSpace", section: "rent_shop", target: {city: x.c.name, store: `${x.c.name} Retail`}, qty: x.delta, qtyStep: R.steps.store,
     action: `Rent +${f0(x.delta)} m² in ${x.c.name} (${f0(x.have)} → ${f0(x.after)} m²) before day ${arrive}.`, budget: Math.round(n(x.c.rent)*x.delta), perDay: true, budgetKey: "space",
     verify: {storeM2: x.after}, why: "Today's order needs the shelf room when it lands."});
   // store stock: one step per store and product; qtyMin = the first days (must), qtyMax = the most worth buying
   const tolP = Math.max(0, n(g.priceTol))/100;
   const mustL = L => Math.min(L.q, L.urgent || 0) > 0, ci = c => S.C.indexOf(c);   // the must-buy lines first, then store by store
   for (const L of [...R.lines].sort((a, b) => mustL(b) - mustL(a) || ci(a.c) - ci(b.c) || a.j - b.j)) {
-    if (!(L.q > 0)) continue;
+    if (!(L.q > 0) || BYHAND && !L.c.open) continue;
     const c = L.c, j = L.j, urgentQ = Math.min(L.q, L.urgent || 0);
     if (rescue && !(urgentQ > 0 && L.cover <= R.lead + 1)) continue;
     const q = rescue ? urgentQ : L.q, unit = R.vend(j, q), tq = n(g.tierQty), tier = tq > 0 && q >= tq && urgentQ < tq;   // tier: a smaller amount pays the full price
@@ -1959,7 +1965,7 @@ function stepsOf(S, X){
   // marketing, then bids (selling prices are locked: no price steps)
   // marketing: one step per store and media agency ("Media A" is agency MA); what the bot last set needs no step (the game keeps it)
   const mkSet = (S.book && S.book.mkSet) || {}, agOf = k => "M" + String(k).trim().slice(-1).toUpperCase();
-  if (has.mkt) for (const x of R.mkStores) {
+  if (has.mkt) for (const x of R.mkStores) { if (BYHAND && !x.c.open) continue;
     const parts = has.media ? Object.entries(x.media || {}).map(([k, v]) => [agOf(k), n(v)]) : [[String(g.mkAgency || "MA").trim() || "MA", x.budget]];
     for (const [ag, v] of parts) { const was = mkSet[`${x.c.name}|${ag}`];
       if (v > 0 ? was !== v : n(was) > 0) add({tick: `mkt:${x.c.name}:${ag}`, op: "setMarketing", section: "marketing", must: was != null && v < n(was), target: {city: x.c.name, store: `${x.c.name} Retail`}, agency: ag, qty: v,
@@ -2342,10 +2348,10 @@ function normalize(s){
   for (const k of Object.keys(s.locks)) if (!s.locks[k]) delete s.locks[k];
   return s;
 }
-/* two modes, each with its own numbers, ticks, game link and team copy. Mode 12i is the default and keeps the team's existing numbers. */
-const MODES = ["12i", "14"], OLDMODE = {"13i": "12i", "16": "14"};   // earlier names of the same two modes
+/* Mode 14 only (Mode 12i is not played any more: its links and readers open Mode 14). Its numbers, ticks, game link and team copy. */
+const MODES = ["14"], OLDMODE = {"12i": "14", "13i": "14", "16": "14"};   // earlier names
 const EMBED = (() => { try { const q = new URLSearchParams(location.search); return {on: q.get("embed") === "1", mode: q.get("mode") || ""}; } catch (e) { return {on: false, mode: ""}; } })();   // calc/?embed=1&mode=12i inside the game tab
-let MODE = (() => { const u = MODES.includes(EMBED.mode) ? EMBED.mode : OLDMODE[EMBED.mode]; if (u) return u; try { const m = localStorage.getItem(KEY + "-mode3") || OLDMODE[localStorage.getItem(KEY + "-mode2")]; return MODES.includes(m) ? m : "12i"; } catch (e) { return "12i"; } })();
+let MODE = (() => { const u = MODES.includes(EMBED.mode) ? EMBED.mode : OLDMODE[EMBED.mode]; if (u) return u; try { const m = localStorage.getItem(KEY + "-mode3") || OLDMODE[localStorage.getItem(KEY + "-mode2")]; return MODES.includes(m) ? m : "14"; } catch (e) { return "14"; } })();
 const SK = (m = MODE) => m === "12i" ? KEY : `${KEY}-m${m}`;
 try { for (const sfx of ["", "-done", "-game"]) { const old = localStorage.getItem(`${KEY}-m16${sfx}`); if (old != null && localStorage.getItem(`${KEY}-m14${sfx}`) == null) localStorage.setItem(`${KEY}-m14${sfx}`, old); } } catch (e) {}   // Mode 16's numbers are Mode 14's now
 /* ---------- team lock ----------
@@ -2401,8 +2407,15 @@ function sealLocal(m, s){
 async function loadStateAsync(m){
   let raw = null; try { raw = localStorage.getItem(SK(m)); } catch (e) {}
   if (!isSealedLocal(raw)) return loadState(m);
-  try { const s = JSON.parse(await unsealV(raw.slice(SEC.local.length), teamKey())); return normalize(s && s.v === 6 ? s : fromPreset("coffee")); }
-  catch (e) { return normalize(fromPreset("coffee")); }
+  try { const s = JSON.parse(await unsealV(raw.slice(SEC.local.length), teamKey())); return normalize(s && s.v === 6 ? s : fromPreset("juice")); }
+  catch (e) { return normalize(fromPreset("juice")); }
+}
+/* Mode 12i is gone: its B2B settings (share, price %, fund, boost, past bids) move into Mode 14 once */
+async function copyB2B(){
+  try { if (!localStorage.getItem(KEY) || localStorage.getItem(KEY + "-b2bcopied")) return; } catch (e) { return; }
+  const old = await loadStateAsync("12i");
+  for (const k of ["b2bShare", "b2bPricePct", "b2bMin", "b2bBoost", "bidLog"]) if (old.g[k] != null) S.g[k] = old.g[k];
+  saveLocal(); try { localStorage.setItem(KEY + "-b2bcopied", "1"); } catch (e) {}
 }
 /* once open with the lock on: plain copies on this device become sealed */
 async function sealLocalCopies(){
@@ -2467,6 +2480,7 @@ async function setAccess(a){
       if (isSealedLocal(raw)) { const s = await loadStateAsync(MODE); if (S.preset !== "game" || s.preset === "game") { S = s; DONE = loadDone(); } }
       sealLocalCopies();
     }
+    await copyB2B();
     renderAll(); renderLive();
   }
   paintSec();
@@ -2499,7 +2513,7 @@ async function lockDevice(){
   try { await Sync.chain; await Sync.tickChain; } catch (e) {}
   await dropKey(); Sec.keys.clear();
   try { for (const m of MODES) for (const sfx of ["", "-done"]) localStorage.removeItem(SK(m) + sfx); } catch (e) {}
-  S = normalize(fromPreset("coffee")); DONE = {}; Sync.ticks = {}; Sync.ticksKey = null; undoSnap = null;
+  S = normalize(fromPreset("juice")); DONE = {}; Sync.ticks = {}; Sync.ticksKey = null; undoSnap = null;
   renderAll();
   await setAccess("locked");
 }
@@ -2627,7 +2641,7 @@ document.addEventListener("click", async e => {
   if (t.id === "lockStartCancel") { $("lockStart").hidden = true; return; }
 });
 /* this device's own copy of each mode's numbers; with the team lock on it is kept sealed (opened once the passcode is in) */
-const loadState = m => { let s; try { const raw = localStorage.getItem(SK(m)); if (!isSealedLocal(raw)) s = JSON.parse(raw); } catch (e) {} return normalize(s && s.v === 6 ? s : fromPreset("coffee")); };
+const loadState = m => { let s; try { const raw = localStorage.getItem(SK(m)); if (!isSealedLocal(raw)) s = JSON.parse(raw); } catch (e) {} return normalize(s && s.v === 6 ? s : fromPreset("juice")); };
 let S = loadState(MODE);
 const shape = s => [s.P.length, s.C.length, s.M.length, s.own.length, s.R.length, ...s.P.map(p => p.name), ...s.C.map(c => c.name), ...s.M.map(m => m.name), ...s.R.map(r => r.name)].join("|");
 const saveLocal = () => { if (Sec.lock) { sealLocal(MODE, S); return; } try { localStorage.setItem(SK(), JSON.stringify(S)); } catch (e) {} };

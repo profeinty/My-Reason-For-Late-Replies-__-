@@ -5,7 +5,7 @@ const PRODUCTS = [["Americano", "Coffee"], ["Hot Chocolate", "Chocolate"], ["Bub
   ({name, price: 20, cost: 8, dim: 0.005, expire: 0, allow: "Yes", bom: [{q: 1, name: "Plastic Cup"}, {q: 2, name: "Straw"}, {q: 1, name: ing}]}));
 const MEM = {setup: {setupDay: 1, modules: ["RTL", "B2B"], lead: 1, machines: [{name: "Machine A", price: 300000, cap: 10000, m2: 200, staff: 2}, {name: "Machine B", price: 200000, cap: 6000, m2: 150, staff: 1}],
   products: PRODUCTS}, ignored: ["Plastic Cup", "Straw", "Coffee", "Chocolate", "Milk Tea"]};
-const PLAN = {ff: "plan", v: 1, mode: "12i", day: 5, planId: "test-d5", reserve: 100000,
+const PLAN = {ff: "plan", v: 1, mode: "14", day: 5, planId: "test-d5", reserve: 100000,
   budgets: {b2b: 0, rent_shop: 60000, rent_wh: 35000, machine: 0, buy_raw: 60000, buy_store: 150000, marketing: 20000, price: 0},
   floors: {Americano: 7.5, "Hot Chocolate": 13},
   steps: [
@@ -33,11 +33,11 @@ const check = (name, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"} $
 const open = async (fail = "", mem = MEM, extra = "") => {   // extra: more of the stand-in game (&so=1 orders to ship, &wfg=1 goods in the warehouse, &mach=1 machines, &cash=)
   await (await fetch(BASE + "/reset?fail=" + fail + extra)).text();
   const ctx = await b.newContext({viewport: {width: 1200, height: 900}});
-  await ctx.addInitScript(m => { try { localStorage.setItem("ff-reader:" + location.host + ":12i", m); } catch (e) {} }, JSON.stringify(mem));
+  await ctx.addInitScript(m => { try { localStorage.setItem("ff-reader:" + location.host + ":14", m); } catch (e) {} }, JSON.stringify(mem));
   const p = await ctx.newPage(), errs = [], logs = [];
   p.on("pageerror", e => errs.push(e.message)); p.on("console", m => logs.push(m.text()));
   await p.goto(BASE + "/game.html");
-  await p.evaluate(() => { window.__FF_MODE = "12i"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
+  await p.evaluate(() => { window.__FF_MODE = "14"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
   await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && window.__ff.data().menus, null, {timeout: 60000});   
   await p.waitForTimeout(500);
   await p.evaluate(new Function(`${sh('[data-tab="bot"]')}.click()`));
@@ -48,7 +48,7 @@ const runDone = p => p.waitForFunction(() => window.__ff.bot.run && window.__ff.
 const server = async () => (await fetch(BASE + "/log")).json();
 const click = (p, sel) => p.evaluate(new Function(`${sh(sel)}.click()`));
 const pane = p => p.evaluate(new Function(`return ${sh('[data-f="bot"]')}.innerText`));
-const memOf = p => p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")) || {});
+const memOf = p => p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")) || {});
 const ME = "FF Player", botTx = L => L.S.tx.filter(x => x.id >= 2000 && x.who === ME && !/Price/.test(x.what));
 const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} ${x.who === ME ? "us" : x.who} ${x.status}`).join(" | ");
 
@@ -138,7 +138,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const calc = p.frames().find(f => f.url().includes("/calc/"));
   const S = await steps(p), L = await server(), linked = await p.evaluate(() => document.getElementById("ff-live").shadowRoot.querySelector('[data-f="link"]').innerText);
   for (const s of S) console.log("  ", s.sec, s.t, s.pr || "", "=>", s.st, "|", s.why);
-  check("D calculator inside the game tab, no pop-up", !!calc && /\/calc\/\?embed=1&mode=12i$/.test(calc.url()) && pops === 0, calc && calc.url());
+  check("D calculator inside the game tab, no pop-up", !!calc && /\/calc\/\?embed=1&mode=14$/.test(calc.url()) && pops === 0, calc && calc.url());
   const shown = await p.evaluate(() => { const r = document.getElementById("ff-calc").shadowRoot; return {t: r.querySelector('[data-f="t"]').textContent, folded: r.querySelector(".c").classList.contains("f")}; });
   check("D calculator box folded and says linked", shown.folded && /linked/.test(shown.t), JSON.stringify(shown));
   check("D linked", /Linked/.test(linked), linked);
@@ -169,7 +169,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const L = await server(), st = await p.evaluate(() => window.__ff.link()), box = await p.evaluate(() => !!document.getElementById("ff-calc"));
   check("D2 fell back to its own tab", calc.url().endsWith("/calc/") && st.via === "tab" && st.state === "linked" && !box, JSON.stringify(st));
   check("D2 plan ran", L.S.mkt.MA[17] === 2500 && L.S.stock[13].P3 === 3000, JSON.stringify({mkt: L.S.mkt.MA, st: L.S.stock[13]}));
-  const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":12i")).calcTab);
+  const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
   check("D2 report has the link and the log", /reader v12/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
@@ -284,7 +284,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   await p.evaluate(pl => window.__ff.plan(pl), pl);
   await click(p, '[data-bot="go"]'); await runDone(p);
   const n1 = (await server()).log.filter(x => x.m === "POST").length;
-  await p.evaluate(() => { window.__ff.stop(); window.__FF_MODE = "12i"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
+  await p.evaluate(() => { window.__ff.stop(); window.__FF_MODE = "14"; const s = document.createElement("script"); s.charset = "utf-8"; s.src = "/reader.js?t=" + Date.now(); document.head.appendChild(s); });
   await p.waitForFunction(() => window.__ff && window.__ff.data() && window.__ff.data().day === 5 && !window.__ff.bot.run, null, {timeout: 60000});
   await p.waitForTimeout(500); await p.evaluate(new Function(`${sh('[data-tab="bot"]')}.click()`));
   await p.evaluate(pl => window.__ff.plan(pl), pl);

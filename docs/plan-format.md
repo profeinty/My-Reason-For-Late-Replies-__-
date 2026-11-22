@@ -9,7 +9,7 @@ Calculator → game tab, posted to the game tab's own origin:
 - `{ff:"ack", app:"ffcalc", mode, ok, planId}` after every `hello` / `data`.
 - `{ff:"plan", app:"ffcalc", v:1, mode, day, planId, ...}` about 0.15 s after each data update that changes the plan, after `hello`, and at once on `botHello` / `getPlan`. The same plan isn't re-sent more than every 5 s unless asked. Only plans made from game data are sent (`source:"game"`), never the preset numbers.
 - The calculator also takes messages from `window.opener` (the game tab, when the bot's Start button opened the calculator).
-- v37: it also takes messages from `window.parent`, when the game tab holds it as an iframe (`calc/?embed=1&mode=12i`; `mode` picks the calculator mode, 12i or 14).
+- v37: it also takes messages from `window.parent`, when the game tab holds it as an iframe (`calc/?embed=1&mode=14`; the calculator has only Mode 14 now).
 - v37: `{ff:"calcReady", app:"ffcalc", mode, locked}` goes to `window.parent` (if it is in an iframe) and `window.opener` (if any) on load, once the lock is known, and again each time the lock opens or closes.
 - v37: while locked it takes no game data, but answers every message from the game tab with `{ff:"ack", app:"ffcalc", mode, locked:true}`, so the bot can ask the team for the passcode.
 - v38: the plan has `alerts: [{id, kind:"jump"|"event", day, text}]`, cost warnings for the team (the bot never acts on them). A new alert re-sends the plan even when the steps are the same.
