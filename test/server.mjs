@@ -158,7 +158,7 @@ const wizAct = (q, b) => {
   if (a === "PurchaseExecute" && S.wiz.order) { const {dest, qs} = S.wiz.order, pr = WIZPRICE(S.wiz.vc); let cost = 0;
     for (const [k, v] of Object.entries(qs)) { cost += v*pr[k]; const st = loc === "RTL" ? S.stock[dest] : (S.wstock[dest] = S.wstock[dest] || {}); st[k] = (st[k] || 0) + v; }
     if (S.fail === "WIZ") return "<div>Error: not enough cash for this order</div>";
-    S.cash -= cost; txAdd(loc, "PO", `Finished Goods Purchase Seller : VFG${S.wiz.vc} ${Object.entries(qs).map(([k, v]) => `${NAMES[k]} ${v} Pack @${pr[k]} EUR`).join(" ")} Terms of Payment : Cash For : ${PLACE[dest]}`); S.wiz = null; return "<div>Submitted</div>"; }
+    S.cash -= cost; txAdd(loc, "PO", `Finished Goods Purchase Seller : VFG${S.wiz.vc} ${Object.entries(qs).map(([k, v]) => `${NAMES[k]} ${v} Pack @${pr[k]} EUR`).join(" ")} Terms of Payment : Cash For : ${PLACE[dest]}`).status = "PO Issued"; S.wiz = null; return "<div>Submitted</div>"; }
   return "<div>Error: unknown step</div>";
 };
 const MENU = {
@@ -237,7 +237,7 @@ const apply = (q, b) => {
   if (cmd === "BUY_FG" || cmd === "BUY_RM") { const dest = b.get(cmd === "BUY_FG" ? "destination_rtl" : "destination_whs"); if (!dest) return "Error: choose a destination";
     let cost = 0; for (const [k, v] of b) if (/^P\d$/.test(k) && v) { if (!TIERS.includes(+v)) return "Error: invalid quantity"; cost += +v*PRICE[k]; const st = cmd === "BUY_FG" ? S.stock[dest] : (S.wstock[dest] = S.wstock[dest] || {}); st[k] = (st[k] || 0) + +v; }
     if (S.fail !== "COD") S.cash -= cost; return "Order placed."; }
-  if (cmd === "REQUEST_VENDOR_DISCOUNT") { const c = b.get("content") || ""; if (!c || c.length > 200) return "Error: write a short request"; S.neg.push({vc: q.get("vc"), dept: q.get("dept"), content: c}); return "Submitted"; }
+  if (cmd === "REQUEST_VENDOR_DISCOUNT") { const c = b.get("content") || ""; if (!c || c.length > 200) return "Error: write a short request"; S.neg.push({vc: q.get("vc"), dept: q.get("dept"), content: c}); txAdd(q.get("dept"), "TX", `Request a vendor discount. Asking for discount from VFG${q.get("vc")}`).status = "Approved"; return "Submitted"; }
   if (cmd === "INVEST_MKT") { for (const [k, v] of b) if (/^invest\d+$/.test(k)) S.mkt[q.get("ma")][k.slice(6)] = +v; return "Marketing expense saved."; }
   if (cmd === "B2B_DEAL" || cmd === "B2B_BID") { const id = q.get("id"); S.offers[id] = "in";
     if (cmd === "B2B_DEAL" && S.soOn) S.sos.unshift({...so(710 + S.sos.length, {product: "P1", qty: 3000, kind: "fixed", maxBid: null, each: 14, status: "In Progress", req: S.day, result: null}), offer: +id});

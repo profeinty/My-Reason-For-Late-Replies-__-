@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13", LIST = 1100, CLICK = 1500;
+  const V = 4, BUILD = "v13.1", LIST = 1100, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -1383,7 +1383,7 @@
   };
   const wizRun = async (part, url, run, list) => {
     const h1 = await get(url), cards = [...dom(h1).querySelectorAll("[data-action^='vendor']")].map(el => ({el, act: el.getAttribute("data-action"), text: tx(el), name: (tx(el).match(/^\S+/) || ["the vendor"])[0]}));
-    await negotiate(cards);
+    await negotiate(cards); if (CUR) CUR.wiz = true;
     const groups = [];
     for (const s of list) {
       const best = cards.map(c => ({c, p: priceIn(c.text, s.product)})).filter(x => x.p != null).sort((a, b) => a.p - b.p)[0];
@@ -1570,7 +1570,7 @@
   const sigHit = (g, r) => { const h = g.names.filter(ws => ws.some(w => r.text.includes(w))).length; return h >= 2 || (h && g.qtys.some(q => numsOf(r).has(q))) ? 2 : h ? 1 : 0; };
   const matchOf = (xs, r) => Math.max(0, ...xs.flatMap(x => x.sigs.map(g => sigHit(g, r))));
   const aprStart = (run, part) => {
-    if (BOT.dry || (learnt(part) && !mem.aprMap[part].length)) return null;
+    if (BOT.dry || (learnt(part) && !mem.aprMap[part].length) || (mem.selfApr || {})[part]) return null;   // selfApr: Mode 14 issues these orders at once
     aprFresh(); run.apr = run.apr || {};
     const x = {run, part, menus: aprMenus(part), base: {...APR.max}, floor0: aprFloor(), end: 0, sent: false, sigs: [], hit: 0, seen: new Set()}; APRX.push(x); return x;
   };
@@ -1655,7 +1655,7 @@
       if (/pric/i.test(r.kind)) { log(`Approvals: left ${txText(r)} alone: the bot never approves a price change.`); continue; }
       if (await aprSend(run, id, r)) { const by = o ? o.run : run, k = o ? o.part : "sweep"; by.apr = by.apr || {}; by.apr[k] = (by.apr[k] || 0) + 1; }
     }
-    aprSave();
+    aprSave(); return ts;
   };
   const aprPrime = async (day, parts) => {
     if (BOT.dry) return; aprFresh(); if (aprFloor() > 0) return;
@@ -1667,7 +1667,8 @@
   };
   const aprAfter = async (run, x) => {
     if (!x) return;
-    for (const id of x.menus) if (!((APR.readAt[id] || 0) > x.end)) await aprLook(run, id);
+    const n0 = APR.n, rows = []; for (const id of x.menus) if (!((APR.readAt[id] || 0) > x.end)) rows.push(...await aprLook(run, id));
+    if (x.wiz && APR.n === n0 && !x.hit && rows.some(a => a.nw === "fresh" && matchOf([x], a.r) === 2 && !waiting(a.r))) { mem.selfApr = {...mem.selfApr, [x.part]: true}; save(); log(`Approvals: ${secName(x.part)} orders need no approval in this game, so their Transactions screen isn't read again.`); }
   };
   const aprSweep = async run => {
     if (BOT.dry) return;

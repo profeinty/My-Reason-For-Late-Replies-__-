@@ -172,7 +172,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v12/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v13\.1/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -612,8 +612,12 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("M14 each order confirmed", W.filter(x => x.act === "PurchaseExecute").length === exec.length && L.S.stock[11].P1 === 8000, L.S.stock[11].P1);
   check("M14 asked both vendors for a discount once, before buying", L.S.neg.length === 2 && L.S.neg.every(n => n.content.length <= 200)
     && L.log.findIndex(x => x.m === "POST" && x.cmd === "REQUEST_VENDOR_DISCOUNT") < L.log.findIndex(x => x.m === "WIZ"), JSON.stringify(L.S.neg));
-  await p.evaluate(pl => window.__ff.plan(pl), {...plan, planId: "test-m14b"}); await click(p, '[data-bot="go"]'); await runDone(p);
-  check("M14 not asked again the same day", (await server()).S.neg.length === 2);
+  check("M14 learnt that Mode 14 orders approve themselves", JSON.stringify((await memOf(p)).selfApr) === '{"buy_store":true,"buy_wh_goods":true}', JSON.stringify((await memOf(p)).selfApr));
+  const t1 = Date.now();
+  await p.evaluate(pl => window.__ff.plan(pl), {...plan, planId: "test-m14b"}); await click(p, '[data-bot="go"]'); await runDone(p); await p.waitForTimeout(3000);
+  const L2 = await server();
+  check("M14 not asked again the same day", L2.S.neg.length === 2);
+  check("M14 then no Transactions screen read after its orders", !L2.log.some(x => x.t >= t1 && /^list:(RTL|WHS)$/.test(x.x || "")), L2.log.filter(x => x.t >= t1 && /^list:/.test(x.x || "")).map(x => x.x).join(","));
   check("M14 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
