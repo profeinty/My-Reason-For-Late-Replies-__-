@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v12", LIST = 1100, CLICK = 1500;
+  const V = 4, BUILD = "v13", LIST = 1100, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -1342,8 +1342,82 @@
     const out = []; for (let i = best; i > 0; i -= via[i].q/g) out.push(via[i]);
     return out.sort((a, b) => b.q - a.q);
   };
+  // Mode 14 buys through a 3-step wizard (vendor card, then the place and quantities in 500s, then confirm); each vendor can be asked for a discount
+  const WIZ = {buy_store: "RTL", buy_wh_goods: "WHS"}, LOT = 500;
+  const NEGTEXT = "We order thousands of packs every day for all our stores. Please give us a volume discount and we will make you our main supplier.";
+  const wizOf = async part => { for (const m of [].concat(BUY[part].menu)) { const l = linksIn(dom(await pageAt(m)), u => /ms_sure_wizard/i.test(u) && /cmd=procurement/i.test(u) && arg(u, "locType") === WIZ[part]); if (l.length) return l[0].url; } return null; };
+  const wizSend = async (f, set) => {   // the form's fields with set on top; null when the bot may not send now
+    if (!BOT.on || stopped || BOT.dry) return null;
+    const q = new URLSearchParams(); for (const [k, v] of f.fields) if (!own(set, k)) q.append(k, v); for (const k in set) q.append(k, set[k]);
+    try { return await post(f.action, q.toString()); } catch (e) { return {err: `no clear answer from the game (${e.message}): check whether it went through`, unsure: true}; }
+  };
+  const negotiate = async cards => {   // once a day for each vendor still on "No Discount", before buying
+    mem.neg = mem.neg || {};
+    for (const c of cards) {
+      const a = linksIn(c.el, u => /cmd=REQUEST_VENDOR_DISCOUNT/i.test(u))[0]; if (!a || !/No Discount/i.test(c.text)) continue;
+      const k = arg(a.url, "vc"); if (mem.neg[k] === today()) continue;
+      if (BOT.dry) { log(`Bot · practice: would ask ${c.name} for a discount`); continue; }
+      const h0 = await get(a.url), f = formOf(h0), h = f && f.has("content") ? await wizSend(f, {content: NEGTEXT}) : null; if (typeof h !== "string") continue;
+      mem.neg[k] = today(); save(); log(`Bot · asked ${c.name} for a discount${(e => e ? `: the game said “${e}”` : "")(errIn(h, h0))}`);
+    }
+  };
+  const wizField = (h, product) => {   // the quantity box (P1, P2...) of a product on the wizard's second screen
+    const d = dom(h), names = (D.products || []).map(p => p.name), ps = [...d.querySelectorAll("input[type=hidden]")].map(e => e.name).filter(k => /^P\d+$/.test(k));
+    const by = ps.find(k => { let e = d.getElementById(k + "_display"); while (e && !names.some(x => tx(e).includes(x))) e = e.parentElement; const hit = e ? names.filter(x => tx(e).includes(x)) : []; return hit.length === 1 && prodIs(hit[0], product); });
+    const order = names.filter(x => tx(d.body).includes(x)).sort((a, b) => tx(d.body).indexOf(a) - tx(d.body).indexOf(b));
+    return by || (order.length === ps.length ? ps[order.findIndex(x => prodIs(x, product))] : null);
+  };
+  const wizBuy = async (h1, g, lines) => {   // vendor, then place and quantities, then confirm
+    const step = async (h, set, next) => {
+      const r = await wizSend(formOf(h), set); if (r == null) return {skip: "the bot was stopped", wait: true}; if (typeof r !== "string") return r;
+      const e = errIn(r, h); if (e) return {err: `the game said “${e}”`};
+      return !next || dom(r).querySelector(`[data-action='${next}']`) ? {h: r} : {err: "the order screen didn't move on"};
+    };
+    const a = await step(h1, {nextAction: g.c.act}, "ImmediateCash"); if (!a.h) return a;
+    const places = [...dom(a.h).querySelectorAll("input[type=radio][name^='destination']")].map(e => ({k: e.name, v: e.value, t: tx(e.closest("label,li,tr") || e.parentElement)}));
+    const dest = pick1(places, g.where, x => placeOf(x.t)); if (!dest) return {err: `no “${g.where}” among the places to ship to`};
+    const set = {[dest.k]: dest.v, nextAction: "ImmediateCash"};
+    for (const l of lines) { const k = wizField(a.h, l.s.product); if (!k) return {err: `no ${l.s.product} on the order screen`}; set[k] = l.q; }
+    const b = await step(a.h, set, "PurchaseExecute"); if (!b.h) return b;
+    const c = await step(b.h, {nextAction: "PurchaseExecute"}); return c.h ? {ok: true} : {...c, unsure: !c.skip};
+  };
+  const wizRun = async (part, url, run, list) => {
+    const h1 = await get(url), cards = [...dom(h1).querySelectorAll("[data-action^='vendor']")].map(el => ({el, act: el.getAttribute("data-action"), text: tx(el), name: (tx(el).match(/^\S+/) || ["the vendor"])[0]}));
+    await negotiate(cards);
+    const groups = [];
+    for (const s of list) {
+      const best = cards.map(c => ({c, p: priceIn(c.text, s.product)})).filter(x => x.p != null).sort((a, b) => a.p - b.p)[0];
+      if (!best) { mark(s, "failed", `no vendor price for ${s.product} on the order screen`); oops(run); continue; }
+      let where = s.where;
+      if (!where && WIZ[part] === "WHS") { const w = await rentedWh(); if (w.length === 1) where = w[0]; else { mark(s, "failed", "the plan doesn't say which warehouse"); oops(run); continue; } }
+      const g = groups.find(g => g.c === best.c && same(g.where, where) && !g.lines.some(l => prodIs(l.s.product, s.product)));
+      if (g) g.lines.push({s, unit: best.p}); else groups.push({c: best.c, where, lines: [{s, unit: best.p}]});
+    }
+    for (const g of groups) {
+      if (!live(run.day)) return;
+      let pend = 0; const lines = [];
+      for (const l of g.lines) {
+        const s = l.s; clock(run, s);
+        const cap = s.unitPriceMax ?? (s.unitPrice != null ? s.unitPrice*(1 + (num((run.plan.limits || {}).priceTolPct) ?? 2)/100) : null);
+        if (cap != null && l.unit > cap + 1e-9) { mark(s, "skipped", `the vendor asks ${l.unit} a unit, the plan allows up to ${Math.round(cap*100)/100}`); continue; }
+        const free = room(run, s, pend), lo = s.qtyMin ?? 1, top = Math.floor(Math.min(s.qtyMax ?? s.qty ?? 0, free.eur/l.unit)/LOT);
+        const q = Math.min(top, Math.max(Math.ceil(lo/LOT), Math.round((s.qty ?? top*LOT)/LOT)))*LOT;
+        if (!(q > 0) || q < lo) { mark(s, "skipped", `${n(lo)} at least would be over ${free.why}`); continue; }
+        pend += q*l.unit; lines.push({...l, q});
+      }
+      if (!lines.length) continue;
+      const c = cashNow(run);
+      if (run.floor == null || c == null || c - pend < run.floor) { lines.forEach(l => mark(l.s, "skipped", "cash would go under the plan's floor")); return; }
+      const res = BOT.dry ? {ok: true} : await wizBuy(h1, g, lines);
+      if (res.skip) { lines.forEach(l => mark(l.s, "skipped", res.skip, !res.wait)); return; }
+      if (res.err) { lines.forEach(l => { l.s.unsure = !!res.unsure; if (res.unsure) book(run, l.s, l.q*l.unit); mark(l.s, "failed", res.err); }); oops(run); return; }
+      lines.forEach(l => { spend(run, l.s, l.q*l.unit); Object.assign(l.s, {qtyDone: l.q, priceDone: l.unit, amount: l.q*l.unit});
+        mark(l.s, "done", `${BOT.dry ? "practice, not sent: " : ""}${n(l.q)} at ${l.unit} from ${g.c.name}${l.s.qty != null && l.q !== l.s.qty ? `, plan ${n(l.s.qty)}` : ""}`); });
+    }
+  };
   const buyRun = part => async (run, list) => {
     const K = BUY[part], vs = await vendorsOf(part), groups = [];
+    if (!vs.length && WIZ[part]) { const w = await wizOf(part); if (w) return wizRun(part, w, run, list); }
     if (!vs.length) { list.forEach(s => mark(s, "failed", "no order link on the vendor page")); oops(run); return; }
     let whs = null;
     for (const s of list) {

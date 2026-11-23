@@ -595,5 +595,35 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("Z no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
+{   // M14: Mode 14 buys through the 3-step wizard and asks each vendor for a discount once a day first
+  const plan = only(s => s.section === "buy_store", {planId: "test-m14"});
+  plan.steps = [...plan.steps, {id: "d5:wh:Americano", seq: 16, section: "buy_wh_goods", action: "buy", target: "Dusseldorf", product: "Americano", qty: 3000, qtyMin: 1000, qtyMax: 3000, unitPrice: 10, cost: 30000}];
+  plan.budgets = {...plan.budgets, buy_store: 260000, buy_wh_goods: 40000};
+  const {ctx, p, errs} = await open("", MEM, "&m14=1&cash=2000000");
+  await p.evaluate(pl => window.__ff.plan(pl), plan); await click(p, '[data-bot="go"]'); await runDone(p);
+  const S = await steps(p), L = await server(), W = L.log.filter(x => x.m === "WIZ"), body = x => new URLSearchParams(x.body);
+  for (const s of S) console.log("  ", s.sec, s.t, s.pr || "", "=>", s.st, "|", s.why);
+  check("M14 every buy step done", S.every(s => s.st === "done"), S.map(s => s.st).join(","));
+  check("M14 the cheaper vendor (VFG1) picked", W.filter(x => /^vendor/.test(x.act)).every(x => x.act === "vendor1") && W.some(x => x.act === "vendor1"));
+  const exec = W.filter(x => x.act === "ImmediateCash").map(body);
+  check("M14 Berlin gets 6,000 Americano and 5,000 Hot Chocolate in one order", exec.some(b => b.get("destination_rtl") === "11" && b.get("P1") === "6000" && b.get("P2") === "5000"), exec.map(b => b.toString()).join(" | "));
+  check("M14 Cologne gets 8,000 Bubble Milk Tea", exec.some(b => b.get("destination_rtl") === "17" && b.get("P3") === "8000"));
+  check("M14 the warehouse order goes to Dusseldorf", exec.some(b => b.get("destination_whs") === "26" && b.get("P1") === "3000"));
+  check("M14 each order confirmed", W.filter(x => x.act === "PurchaseExecute").length === exec.length && L.S.stock[11].P1 === 8000, L.S.stock[11].P1);
+  check("M14 asked both vendors for a discount once, before buying", L.S.neg.length === 2 && L.S.neg.every(n => n.content.length <= 200)
+    && L.log.findIndex(x => x.m === "POST" && x.cmd === "REQUEST_VENDOR_DISCOUNT") < L.log.findIndex(x => x.m === "WIZ"), JSON.stringify(L.S.neg));
+  await p.evaluate(pl => window.__ff.plan(pl), {...plan, planId: "test-m14b"}); await click(p, '[data-bot="go"]'); await runDone(p);
+  check("M14 not asked again the same day", (await server()).S.neg.length === 2);
+  check("M14 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{   // M14b: practice sends nothing in Mode 14
+  const {ctx, p} = await open("", MEM, "&m14=1&cash=2000000");
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => s.section === "buy_store", {planId: "test-m14p", budgets: {...PLAN.budgets, buy_store: 260000}}));
+  await click(p, '[data-bot="dry"]'); await click(p, '[data-bot="go"]'); await runDone(p);
+  const L = await server();
+  check("M14b practice: no order and no discount request sent", !L.log.some(x => x.m === "WIZ" || x.m === "POST") && (await steps(p)).every(s => s.st === "done"), L.log.filter(x => x.m === "WIZ" || x.m === "POST").map(x => x.act || x.cmd).join(","));
+  await ctx.close();
+}
 await b.close();
 console.log(fails ? `${fails} FAILED` : "ALL PASS"); process.exit(fails ? 1 : 0);

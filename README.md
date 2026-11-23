@@ -26,7 +26,7 @@ It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag fo
 
 The Deals tab checks B2B > B2B Offers and shows which open deals it would grab. Smart mode: enough stock in the warehouses and price at least cost x margin (default 1.15); bids go in 3% under the max price. Grab all mode skips those checks. One deal per product per day (the game's limit). The Deals tab only previews; the Bot tab accepts and bids on the deals the calculator's plan picks. (The Auto tab and its auto-click were removed in v11.)
 
-## Bot (reader v12)
+## Bot (reader v13)
 
 The Bot tab follows the calculator's plan: every quantity, price and budget comes from the calculator, nothing is a fixed number in the bot.
 

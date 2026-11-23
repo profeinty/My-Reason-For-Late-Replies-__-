@@ -43,7 +43,7 @@ const reset = (o = {}) => {
       {id: 1990, tpe: "RTL", type: "TX", what: "Retail Rental Change Cologne. Rental Fee : 45 EUR / Day From 100 (30-day Contract ) To 150 m2 (Daily Contract)", who: ME, asked: 5, status: "Requested"},
       {id: 1991, tpe: "RTL", type: "PO", what: "Finished Goods Purchase Seller : VFG2 Hot Chocolate 1000 Unit @14 EUR Terms of Payment : Cash For : Hamburg Retail", who: MATE, asked: 5, status: "Requested"},
       {id: 1700, tpe: "RTL", type: "TX", what: "Retail Rental Change Berlin. Rental Fee : 52 EUR / Day From 200 To 250 m2", who: ME, asked: 3, status: "Requested"}],
-    nextTx: 2000, approved: [], cancelled: [], noScript: !!o.noscript, approveFail: o.approvefail || "", slow: o.slow || 0, fee: o.fee || 0, news: ""};   // slow: the next list screens are refused, as if the player had just clicked one
+    m14: !!o.m14, wiz: null, neg: [], nextTx: 2000, approved: [], cancelled: [], noScript: !!o.noscript, approveFail: o.approvefail || "", slow: o.slow || 0, fee: o.fee || 0, news: ""};   // slow: the next list screens are refused, as if the player had just clicked one
   if (o.so) {
     S.sos.unshift(so(701, {product: "P1", qty: 4000, due: 8, ourBid: 13.5, bids: [["FF", 13.5, 1], ["TGED", 14.2]], status: "In Progress", req: 3, result: 4}),
       so(702, {product: "P2", qty: 2000, kind: "fixed", maxBid: null, each: 14, due: 7, status: "In Progress", allocated: 500, req: 4, result: null}));
@@ -138,11 +138,34 @@ const allocForm = (q, o, to) => {
 const webRow = w => `<div id="row${w.id}"><div><div><h6>WTS</h6> ID: <span><b>${w.id}</b><ol><li><div><b>${NAMES[w.product]}<div></div><br></b><ul><li><b>Price: </b><span>${w.price.toLocaleString("en", {minimumFractionDigits: 2})} EUR</span></li><li><b>Quantity: </b><span>${w.qty} Unit</span></li><li><b>Shipment: </b><span>${w.days} day</span></li><li><b>Seller: </b><span>${w.seller}</span></li><li><b>Rating: </b><span></span></li></ul></div></li></ol>
   ${w.seller === "FF" ? "" : `<span><a href="ms_sure_learner?cmd=TOBUY_ECM&amp;id=${w.id}&amp;unique=&amp;prc=${w.price.toFixed(2)}"><span>We buy</span></a></span>`}</span></div></div></div>`;
 const dailyRows = () => [4, 3].map(d => `<tr><td>${d}</td><td><div>${S.machines.map(m => `<div><div>${m.id}</div><div>${NAMES[m.setup]}</div><div></div>${["P1", "P2", "P3"].map(p => `<div>${p === m.setup ? m.made : 0}</div>`).join("")}</div>`).join("")}</div></td></tr>`).join("");
+// Mode 14 (&m14=1): buying is a 3-step wizard as the real game's (vendor card, then place and quantities in 500s, then confirm), and each vendor has a Negotiate link
+const WIZLINK = loc => `<div>Procurement</div><a class="btn" href="ms_sure_wizard?cmd=procurement&locType=${loc}&tpe=FG">+ Procure Finished Goods</a>`;
+const WIZPRICE = vc => Object.fromEntries(["P1", "P2", "P3"].map(k => [k, PRICE[k] + (vc == 2 ? 1 : 0)]));
+const wizForm = (loc, inner, cards) => `<form method="post" action="ms_sure_wizard?submit=1&step=&cmd=procurement&locType=${loc}&tpe=FG">${inner}<input type="hidden" name="nextAction" value=""><input type="hidden" name="nextAction_title" value=""><input type="hidden" name="nextAction_desc" value=""><input type="hidden" name="nextAction_meta" value="">${cards.map(([a, t]) => `<div class="card-option" data-action="${a}" data-title="${t.split(" ")[0]}">${t}</div>`).join("")}<input type="checkbox" id="nextAction_chk_confirm"><button type="button" id="nextAction_btn_confirm">Confirm</button><input type="submit" id="dbutton" style="display:none"></form>`;
+const wizStep1 = loc => wizForm(loc, "<p>Please Select One Vendor</p>", [1, 2].map(vc => [`vendor${vc}`, `VFG${vc} Finished Goods ${["P1", "P2", "P3"].map(k => `${NAMES[k]}: ${WIZPRICE(vc)[k]} EUR Dimension: 0.005 m2`).join(" ")} Discount: No Discount <a href="ms_sure_learner?cmd=REQUEST_VENDOR_DISCOUNT&vc=${vc}&dept=${loc}">Negotiate</a> Lead Time: 1 Day`]));
+const wizStep2 = loc => { const dk = loc === "RTL" ? "destination_rtl" : "destination_whs", places = loc === "RTL" ? [11, 13, 17] : [26, 27];
+  return wizForm(loc, `<div>Ship to</div>${places.map((v, i) => `<label><input type="radio" name="${dk}" value="${v}"${i ? "" : " checked"}> ${PLACE[v]}</label>`).join("")}
+    ${["P1", "P2", "P3"].map(k => `<div>${NAMES[k]} <input type="hidden" name="${k}" value="0"><button type="button">−</button><input type="text" id="${k}_display" value="0"><button type="button">+</button></div>`).join("")}`, [["ImmediateCash", "Immediate delivery"]]); };
+const wizAct = (q, b) => {
+  const loc = q.get("locType"), a = b.get("nextAction") || "";
+  if (/^vendor\d$/.test(a)) { S.wiz = {vc: +a.slice(6), loc}; return wizStep2(loc); }
+  if (!S.wiz) return "<div>Error: start again</div>";
+  if (a === "ImmediateCash") { const dest = b.get(loc === "RTL" ? "destination_rtl" : "destination_whs"), qs = {};
+    if (!PLACE[dest]) return "<div>Error: choose where to ship</div>";
+    for (const k of ["P1", "P2", "P3"]) { const v = +b.get(k) || 0; if (v % 500) return "<div>Error: invalid quantity</div>"; if (v) qs[k] = v; }
+    if (!Object.keys(qs).length) return "<div>Error: nothing to buy</div>";
+    S.wiz.order = {dest, qs}; return wizForm(loc, `<div>Confirm Purchase request : Vendor: VFG${S.wiz.vc} Ship to: ${PLACE[dest]} ${Object.entries(qs).map(([k, v]) => `${NAMES[k]} Quantity: ${v} Pack @ ${WIZPRICE(S.wiz.vc)[k]} EUR`).join(" ")}</div>`, [["PurchaseExecute", "Issue PO"], ["DECIDE", "Back to Start"]]); }
+  if (a === "PurchaseExecute" && S.wiz.order) { const {dest, qs} = S.wiz.order, pr = WIZPRICE(S.wiz.vc); let cost = 0;
+    for (const [k, v] of Object.entries(qs)) { cost += v*pr[k]; const st = loc === "RTL" ? S.stock[dest] : (S.wstock[dest] = S.wstock[dest] || {}); st[k] = (st[k] || 0) + v; }
+    if (S.fail === "WIZ") return "<div>Error: not enough cash for this order</div>";
+    S.cash -= cost; txAdd(loc, "PO", `Finished Goods Purchase Seller : VFG${S.wiz.vc} ${Object.entries(qs).map(([k, v]) => `${NAMES[k]} ${v} Pack @${pr[k]} EUR`).join(" ")} Terms of Payment : Cash For : ${PLACE[dest]}`); S.wiz = null; return "<div>Submitted</div>"; }
+  return "<div>Error: unknown step</div>";
+};
 const MENU = {
   retail_location: () => space(S.shops, "Retail"), whs_location: () => space(S.whs, "Warehouse"),
-  retail_vendor: () => `<div class="vendor-box"><div>VFG1 Vendor 1</div><div>Americano 10 EUR Hot Chocolate 13 EUR Bubble Milk Tea 16 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=1">Procure Finished Goods</a></div>
+  retail_vendor: () => S.m14 ? WIZLINK("RTL") : `<div class="vendor-box"><div>VFG1 Vendor 1</div><div>Americano 10 EUR Hot Chocolate 13 EUR Bubble Milk Tea 16 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=1">Procure Finished Goods</a></div>
     <div class="vendor-box"><div>VFG2 Vendor 2</div><div>Americano 11 EUR Hot Chocolate 14 EUR Bubble Milk Tea 17 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=2">Procure Finished Goods</a></div>`,
-  warehouse_vendor: () => `<div class="vendor-box"><div>VRM3 Vendor 3</div><div>Plastic Cup 1 EUR Straw 0.6 EUR Coffee 3 EUR Chocolate 5 EUR Milk Tea 8 EUR</div><a href="ms_sure_learner?cmd=BUY_RM&loctype=WHS&vc=3">Procure Raw Materials</a></div>`,
+  warehouse_vendor: () => S.m14 ? WIZLINK("WHS") : `<div class="vendor-box"><div>VRM3 Vendor 3</div><div>Plastic Cup 1 EUR Straw 0.6 EUR Coffee 3 EUR Chocolate 5 EUR Milk Tea 8 EUR</div><a href="ms_sure_learner?cmd=BUY_RM&loctype=WHS&vc=3">Procure Raw Materials</a></div>`,
   retail_media: () => `<div class="ag"><div>MA Media A</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MA">Set Marketing Expense</a></div><div class="ag"><div>MB Media B</div><a href="ms_sure_learner?cmd=INVEST_MKT&ma=MB">Set Marketing Expense</a></div>
     ${S.fee ? `<div class="rep"><div>Market Report</div><div>Fee : ${S.fee.toLocaleString("en")} EUR / Day</div><a href="ms_sure_learner?cmd=MKT_REPORT_BUY">Buy Report</a></div>` : ""}`,
   b2b: () => `<div id="SlideTableMODE_TRANSACTIONB2B_IN">${offer(12, "Cafe X", "P1", 3000, "<span>Each : </span>14 EUR <br>", `<a href="ms_sure_learner?cmd=B2B_DEAL&amp;id=12&amp;ret=row12"><span>Deal</span></a>`)}
@@ -165,6 +188,7 @@ const form = (q, inner, btn = "dbutton") => `<form method="post" action="ms_sure
 const bare = (action, inner, btn = `<input type="submit" id="dbutton" value="Submit">`) => `<form method="post" action="${action}">${inner}${btn}</form>`;   // a form as the real game writes it: no hidden cmd
 const rented = () => [...Object.entries(S.whs).filter(([, w]) => w.area > 0).map(([lc]) => lc), ...Object.entries(S.shops).filter(([, s]) => s.area > 0).map(([ac]) => ac)];
 const FORM = {
+  REQUEST_VENDOR_DISCOUNT: q => bare(`ms_sure_learner?submit=1&step=&cmd=REQUEST_VENDOR_DISCOUNT&vc=${q.get("vc")}&dept=${q.get("dept")}`, `<p>Please submit a short request to vendor VFG${q.get("vc")} to get better discount</p><textarea name="content" maxlength="200"></textarea>`),
   SPACE_MANAGE: q => { const ac = q.get("ac"), s = S.shops[ac] || S.whs[ac];
     return form(q, `<p>Area needed (m2) <input type="text" name="rent${ac}" value="${s.area}"> <button type="button">+</button></p><p>Terms <select name="terms${ac}"><option value="1">Daily (no discount)</option><option value="7">7-Day (20% discount)</option><option value="30" selected>30-Day (60% discount)</option></select></p>`); },
   BUY_FG: q => form(q, `<p>Destination <select name="destination_rtl"><option value="">Destination</option><option value="11">Ship to : Berlin Retail</option><option value="13">Ship to : Hamburg Retail</option><option value="17">Ship to : Cologne Retail</option></select></p>
@@ -213,6 +237,7 @@ const apply = (q, b) => {
   if (cmd === "BUY_FG" || cmd === "BUY_RM") { const dest = b.get(cmd === "BUY_FG" ? "destination_rtl" : "destination_whs"); if (!dest) return "Error: choose a destination";
     let cost = 0; for (const [k, v] of b) if (/^P\d$/.test(k) && v) { if (!TIERS.includes(+v)) return "Error: invalid quantity"; cost += +v*PRICE[k]; const st = cmd === "BUY_FG" ? S.stock[dest] : (S.wstock[dest] = S.wstock[dest] || {}); st[k] = (st[k] || 0) + +v; }
     if (S.fail !== "COD") S.cash -= cost; return "Order placed."; }
+  if (cmd === "REQUEST_VENDOR_DISCOUNT") { const c = b.get("content") || ""; if (!c || c.length > 200) return "Error: write a short request"; S.neg.push({vc: q.get("vc"), dept: q.get("dept"), content: c}); return "Submitted"; }
   if (cmd === "INVEST_MKT") { for (const [k, v] of b) if (/^invest\d+$/.test(k)) S.mkt[q.get("ma")][k.slice(6)] = +v; return "Marketing expense saved."; }
   if (cmd === "B2B_DEAL" || cmd === "B2B_BID") { const id = q.get("id"); S.offers[id] = "in";
     if (cmd === "B2B_DEAL" && S.soOn) S.sos.unshift({...so(710 + S.sos.length, {product: "P1", qty: 3000, kind: "fixed", maxBid: null, each: 14, status: "In Progress", req: S.day, result: null}), offer: +id});
@@ -261,7 +286,7 @@ http.createServer((req, res) => {
     if (u.pathname === "/dash") return send(dash());
     if (u.pathname === "/calc/") return send(REAL_CALC ? fs.readFileSync(process.env.CALC_FILE || new URL("../calc/index.html", import.meta.url), "utf8")   // /reset?calc=real: the real calculator (CALC_FILE: another copy of it)
       : fs.readFileSync(new URL("./calc-stub.html", import.meta.url), "utf8").replace("<head>", `<head><script>window.STUB = ${JSON.stringify({old: STUB === "old", locked: STUB === "locked"})}</script>`));
-    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash"), noscript: q.get("noscript") === "1", approvefail: q.get("approvefail") || "", slow: +q.get("slow") || 0, fee: +q.get("fee") || 0}); return send("ok"); }
+    if (u.pathname === "/reset") { REAL_CALC = q.get("calc") === "real"; STUB = q.get("stub") || ""; reset({fail: q.get("fail") || "", so: q.get("so") === "1", wfg: q.get("wfg") === "1", mach: q.get("mach") === "1", cash: q.get("cash"), m14: q.get("m14") === "1", noscript: q.get("noscript") === "1", approvefail: q.get("approvefail") || "", slow: +q.get("slow") || 0, fee: +q.get("fee") || 0}); return send("ok"); }
     if (u.pathname === "/log") return send(JSON.stringify({log, S}), "application/json");
     if (u.pathname === "/day") { S.day = +q.get("d"); if (q.get("offers")) for (const k in S.offers) S.offers[k] = "open"; if (q.get("fee")) S.fee = +q.get("fee"); if (q.get("news")) S.news = q.get("news"); return send("ok"); }   // offers=1: the day's offers are open again; fee=, news=: the market report's fee, a news line
     if (u.pathname === "/m") { log.push({t: Date.now(), m: "GET", x: q.get("x")}); return send(page(MENU[q.get("x")]())); }
@@ -272,6 +297,9 @@ http.createServer((req, res) => {
       return send(page(TXMENUS.includes(tpe) ? txPage(tpe, from, from + 5) : tpe === "B2B_IN" ? MENU.b2b() : soPage(from, from + 5))); }
     if (u.pathname === "/ajax.php") { const b = new URLSearchParams(body), r = req.method === "POST" && q.get("cmd") === "ACTION_ON_ROW" ? onRow(b) : "Error: unknown";
       log.push({t: Date.now(), m: "AJAX", cmd: q.get("cmd"), body, r, xhr: req.headers["x-requested-with"] || ""}); return send(r); }
+    if (u.pathname === "/ms_sure_wizard") {
+      if (req.method !== "POST") { log.push({t: Date.now(), m: "GET", cmd: "WIZ", q: u.search}); return send(page(wizStep1(q.get("locType")))); }
+      const b = new URLSearchParams(body), r = wizAct(q, b); log.push({t: Date.now(), m: "WIZ", act: b.get("nextAction"), q: u.search, body}); return send(page(r)); }
     if (u.pathname === "/ms_sure_learner") {
       const cmd = q.get("cmd");
       if (req.method === "POST") { const b = new URLSearchParams(body), r = act(q, b); log.push({t: Date.now(), m: "POST", cmd, q: u.search, body, r});
