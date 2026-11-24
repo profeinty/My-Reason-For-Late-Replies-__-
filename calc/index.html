@@ -2,49 +2,49 @@
 <title>FF MonsoonSIM Calculator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v40 (web) -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<!-- FF calculator v41 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
 :root{
   --bg:#ECEFEA; --panel:#FAFBF8; --sunk:#E2E7E1; --field:#F2F5F0; --ink:#17221D; --ink-2:#3B4943; --muted:#55655D; --line:#D0D8D1; --line-2:#B3BFB6;
-  --accent:#B4451C; --accent-hover:#9C3A16; --accent-ink:#FFFFFF; --accent-soft:#F6E4DA; --focus:#1F6FB2; --flash:#F7E2C8;
+  --accent:#2445A8; --accent-hover:#1B3685; --accent-ink:#FFFFFF; --accent-soft:#E3E8F6; --focus:#B86A00; --flash:#FBEFC9;
   --good:#2A7546; --warn:#8A5A0A; --bad:#B2261E; --good-bg:#DDEFE3; --warn-bg:#F6E9CF; --bad-bg:#F7DCD8;
-  --rail-done:#9AAB9F; --shade:rgba(23,34,29,.16); --shadow:0 2px 6px rgba(23,34,29,.08),0 12px 28px rgba(23,34,29,.12);
+  --rail-done:#9AAB9F; --shade:rgba(23,34,29,.16); --shadow:0 1px 2px rgba(23,34,29,.08);
   --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c0:#C3CCC5;
   --f-display:"Archivo","Arial Narrow",Arial,sans-serif;
   --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --f-num:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   --r:12px;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0F1412; --panel:#161D1A; --sunk:#0C110F; --field:#121916; --ink:#E3EAE5; --ink-2:#C2CEC7; --muted:#95A59D; --line:#29342F; --line-2:#3C4A44;
-    --accent:#EE7A45; --accent-hover:#F48F60; --accent-ink:#1A0E08; --accent-soft:#3A2418; --focus:#6EB2EE; --flash:#3E2A16;
+    --accent:#8AA4FF; --accent-hover:#A6BAFF; --accent-ink:#0B1433; --accent-soft:#1C2547; --focus:#F0B44C; --flash:#3A3216;
     --good:#5CC285; --warn:#E3A945; --bad:#F07A6E; --good-bg:#173323; --warn-bg:#3A2C10; --bad-bg:#3D1916;
-    --rail-done:#4B5D54; --shade:rgba(0,0,0,.5); --shadow:0 2px 6px rgba(0,0,0,.35),0 12px 28px rgba(0,0,0,.4);
+    --rail-done:#4B5D54; --shade:rgba(0,0,0,.5); --shadow:0 1px 2px rgba(0,0,0,.4);
     --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c0:#3A4741;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0F1412; --panel:#161D1A; --sunk:#0C110F; --field:#121916; --ink:#E3EAE5; --ink-2:#C2CEC7; --muted:#95A59D; --line:#29342F; --line-2:#3C4A44;
-  --accent:#EE7A45; --accent-hover:#F48F60; --accent-ink:#1A0E08; --accent-soft:#3A2418; --focus:#6EB2EE; --flash:#3E2A16;
+  --accent:#8AA4FF; --accent-hover:#A6BAFF; --accent-ink:#0B1433; --accent-soft:#1C2547; --focus:#F0B44C; --flash:#3A3216;
   --good:#5CC285; --warn:#E3A945; --bad:#F07A6E; --good-bg:#173323; --warn-bg:#3A2C10; --bad-bg:#3D1916;
-  --rail-done:#4B5D54; --shade:rgba(0,0,0,.5); --shadow:0 2px 6px rgba(0,0,0,.35),0 12px 28px rgba(0,0,0,.4);
+  --rail-done:#4B5D54; --shade:rgba(0,0,0,.5); --shadow:0 1px 2px rgba(0,0,0,.4);
   --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c0:#3A4741;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}   /* hidden always wins over a component's own display (the lock screen, the lock box…) */
 html{-webkit-text-size-adjust:100%}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums}
 .wrap{max-width:1680px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 56px;display:flex;flex-direction:column;gap:14px}
 h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.15;text-wrap:balance}
 p{margin:0}
 b{font-weight:600}
-.eyebrow{font:700 .68rem/1.25 var(--f-display);font-stretch:85%;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.eyebrow{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted)}
 .hint{font-size:.8rem;color:var(--muted)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
@@ -155,7 +155,7 @@ details.sec{border-bottom:1px solid var(--line)}
 details.sec:last-child{border-bottom:0}
 details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:11px 14px;position:sticky;top:env(safe-area-inset-top,0px);z-index:2;background:var(--panel)}
 details.sec>summary::-webkit-details-marker{display:none}
-details.sec>summary h3{font:700 .74rem/1.2 var(--f-display);font-stretch:85%;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+details.sec>summary h3{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--ink-2)}
 @media (hover:hover){details.sec>summary:hover h3{color:var(--ink)}}
 details.sec>summary .count{margin-left:auto;font:500 .76rem/1 var(--f-num);color:var(--muted);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .sec-body{padding:2px 14px 16px;display:flex;flex-direction:column;gap:12px}
@@ -169,7 +169,7 @@ details.sec>summary .count{margin-left:auto;font:500 .76rem/1 var(--f-num);color
 /* tables */
 .tw{position:relative;overflow-x:auto;border:1px solid var(--line);border-radius:10px;min-width:0}   /* relative: hidden labels inside stay inside the scroller */
 table{border-collapse:collapse;width:100%;font-size:.84rem}
-th{font:700 .66rem/1.25 var(--f-display);font-stretch:85%;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 8px;background:var(--sunk);vertical-align:bottom}
+th{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted);text-align:left;padding:7px 8px;background:var(--sunk);vertical-align:bottom}
 td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:middle}
 th.n,td.n{text-align:right}
 td.n{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.82rem}
@@ -230,7 +230,7 @@ td select{width:auto;max-width:12em;height:30px;padding:2px 4px}
 /* day rail */
 .rail{display:flex;flex-direction:column;gap:8px}
 .lane{position:relative;height:30px}
-.tl{position:absolute;top:0;transform:translateX(-50%);font:700 .68rem/1 var(--f-display);font-stretch:85%;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);white-space:nowrap;padding:3px 6px;border-radius:5px;background:var(--accent-soft)}
+.tl{position:absolute;top:0;transform:translateX(-50%);font:600 .76rem/1 var(--f-body);letter-spacing:0;color:var(--accent);white-space:nowrap;padding:3px 6px;border-radius:5px;background:var(--accent-soft)}
 .tl.l{transform:none}
 .tl.r{transform:translateX(-100%)}
 .hd{position:absolute;bottom:5px;width:8px;height:8px;margin-left:-4px;background:var(--ink-2);transform:rotate(45deg);border-radius:1.5px}
@@ -255,7 +255,7 @@ td select{width:auto;max-width:12em;height:30px;padding:2px 4px}
 @container (min-width:460px){.kpis:is(.k2,.k3,.k4) .kpi{grid-column:auto}.kpis.k2{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis.k3{grid-template-columns:repeat(3,minmax(0,1fr))}.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container (min-width:720px){.kpis,.kpis:is(.k2,.k3,.k4){grid-template-columns:repeat(var(--n,5),minmax(0,1fr))}.kpi,.kpi:nth-child(n+4){grid-column:auto}}
 .kpi{background:var(--panel);padding:11px 13px 12px;display:flex;flex-direction:column;gap:3px;min-width:0;transition:background-color .6s}
-.kpi .lbl{font:700 .66rem/1.25 var(--f-display);font-stretch:85%;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kpi .lbl{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted)}
 .kpi .val{font:700 1.6rem/1.1 var(--f-display);font-stretch:100%;letter-spacing:-.015em;color:var(--ink)}
 .kpi.off .val{color:var(--muted);font-weight:500}
 .kpi .note{font-size:.76rem;line-height:1.35;color:var(--muted);overflow-wrap:anywhere}
@@ -293,7 +293,7 @@ td select{width:auto;max-width:12em;height:30px;padding:2px 4px}
 td.tk,th.tk{width:36px;padding-right:2px}
 .tkl{display:flex;align-items:center;justify-content:center;cursor:pointer}
 td.tkc,[data-tip]{cursor:pointer}   /* the whole Done cell ticks; iPhone/iPad only send a tap's click to things that look clickable */
-.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font:700 .64rem/1.4 var(--f-display);font-stretch:85%;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;background:var(--sunk);color:var(--ink-2);vertical-align:1px}
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font:600 .78rem/1.3 var(--f-body);letter-spacing:0;white-space:nowrap;background:var(--sunk);color:var(--ink-2);vertical-align:1px}
 .pill.acc{background:var(--accent);color:var(--accent-ink)}
 .pill.good{background:var(--good-bg);color:var(--good)}
 .pill.warn{background:var(--warn-bg);color:var(--warn)}
@@ -321,7 +321,7 @@ td.tkc,[data-tip]{cursor:pointer}   /* the whole Done cell ticks; iPhone/iPad on
 .pt td.why{font-size:.78rem;color:var(--muted)}
 .pt td.warn-c{color:var(--warn)}
 .pt tr.tot>td{font-weight:600;background:var(--sunk);color:var(--ink)}
-.pt tr.grp>td{font:700 .66rem/1.25 var(--f-display);font-stretch:85%;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:10px}
+.pt tr.grp>td{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted);padding-top:10px}
 .pt tr.on>td{background:var(--accent-soft)}
 .sum-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .sum-list li{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;padding:8px 12px;font-size:.84rem;color:var(--ink-2)}
@@ -340,7 +340,7 @@ td.tkc,[data-tip]{cursor:pointer}   /* the whole Done cell ticks; iPhone/iPad on
 .sw.ln-low{background:var(--c1)}.sw.ln-floor{background:var(--bad)}.sw.ln-b2b{background:var(--c3);border-radius:99px}
 details.more>summary{cursor:pointer;color:var(--ink-2);font-weight:600;margin:6px 0}
 .cmp th[scope=row]{font:600 .8rem/1.3 var(--f-body);text-transform:none;letter-spacing:0;color:var(--ink-2);background:transparent;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
-.cmp thead button{border:0;background:transparent;padding:0;font:700 .7rem/1.2 var(--f-display);font-stretch:85%;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border-radius:4px}
+.cmp thead button{border:0;background:transparent;padding:0;font:600 .78rem/1.2 var(--f-body);letter-spacing:0;color:var(--muted);border-radius:4px}
 @media (hover:hover){.cmp thead button:hover{color:var(--ink)}}
 .cmp thead button[aria-pressed="true"]{color:var(--accent)}
 .cmp td.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
@@ -438,7 +438,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   <header class="top">
     <div class="brand">
       <span class="mark" aria-hidden="true">FF</span>
-      <div><h1>MonsoonSIM Calculator</h1><p class="eyebrow" id="modeName">Team FF · MonsoonSIM · Mode 14</p></div>
+      <div><h1>MonsoonSIM Calculator</h1><p class="eyebrow" id="modeName">Team FF, Mode 14</p></div>
     </div>
     <div class="src">
       <div class="seg sm mode" id="modeSeg" role="group" aria-label="Calculator mode"><button type="button" data-mode="14" aria-pressed="true">Mode 14</button></div>
@@ -448,8 +448,8 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
       <details class="menu" id="presetMenu">
         <summary class="btn">Start from</summary>
         <div class="pop">
-          <button type="button" data-preset="coffee" data-label="Coffee · Germany">Coffee · Germany<small>80 days · makes drinks with 2 machine types</small></button>
-          <button type="button" data-preset="juice" data-label="Juice · Korea">Juice · Korea<small>60 days · buys everything from the vendor</small></button>
+          <button type="button" data-preset="coffee" data-label="Coffee sample">Coffee sample<small>Makes drinks with 2 machine types</small></button>
+          <button type="button" data-preset="juice" data-label="Juice sample">Juice sample<small>Buys everything from the vendor</small></button>
         </div>
       </details>
     </div>
@@ -458,12 +458,12 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   <section class="secbox" id="secBox" hidden aria-label="Team lock"></section>
 
   <details class="import" id="importBox">
-    <summary><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>Auto-fill from your game</h2><span class="hint" id="importHint">Live, or 3 steps by hand</span></summary>
+    <summary><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>Auto-fill from your game</h2><span class="hint" id="importHint">Live, or by hand</span></summary>
     <div class="import-body">
       <div>
       <div class="live">
-        <p class="eyebrow">Live: updates by itself</p>
-        <p><button type="button" class="small primary" id="goLive">Go live</button> opens your game in a new tab linked to this page<span class="for-desk"> and copies the reader. In that tab press <kbd>F12</kbd>, pick <b>Console</b>, paste, press <kbd>Enter</kbd>.</span><span class="for-touch">. This device has no Console, so in that tab you run the <b class="bmName">FF live</b> bookmark instead (below).</span> From then on this page follows the game live: a new day shows here within a second or two. Keep the game tab open (side by side with this page works best).</p>
+        <p class="eyebrow">Live</p>
+        <p><button type="button" class="small primary" id="goLive">Go live</button> opens your game in a new tab linked to this page<span class="for-desk"> and copies the reader. In that tab press <kbd>F12</kbd>, pick <b>Console</b>, paste, press <kbd>Enter</kbd>.</span><span class="for-touch">. This device has no Console, so in that tab you run the <b class="bmName">FF live</b> bookmark instead (below).</span> Each new day then shows here within a second or two, while the game tab stays open.</p>
         <div class="row"><label for="gameUrl" class="hint">Game address</label><input type="text" id="gameUrl" placeholder="Copy it from your game tab's address bar" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="url"></div>
         <p class="hint" id="liveMsg" role="status"></p>
         <p class="hint for-desk">No Console? Drag <a class="bm" id="bm" href="#" title="Drag me to your bookmarks bar">FF live</a> to your bookmarks bar, then click it on your game tab. On a tablet or phone? <a href="#" data-dev="touch">Show the tablet steps</a>.</p>
@@ -473,12 +473,12 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
                     <li class="hint">On a computer? <a href="#" data-dev="desk">Show the Console steps</a>.</li>
         </ul>
       </div>
-      <p class="eyebrow" style="margin-bottom:10px">Or once, by hand</p>
+      <p class="eyebrow" style="margin-bottom:10px">By hand</p>
       <ol class="steps">
         <li class="for-desk"><span>Open your game in Chrome, press <kbd>F12</kbd>, pick <b>Console</b>. The first time, type <b>allow pasting</b> and press <kbd>Enter</kbd>.</span></li>
-        <li class="for-desk"><span><button type="button" class="small primary" id="copyReader">Copy game reader</button> paste it into the Console, press <kbd>Enter</kbd>. A box appears at the bottom right of the game (the first time takes under half a minute; it remembers the setup after that). Then it follows the game live, a second or two behind it. It only reads.</span></li>
-        <li class="for-touch"><span>On your game tab, run the <b class="bmName">FF live</b> bookmark (make it above). A box appears at the bottom right of the game (the first time takes under half a minute). Then it follows the game live. It only reads.</span></li>
-        <li><span><span class="for-desk">Click</span><span class="for-touch">Tap</span> <b>Copy data</b> there, then paste in the box here<span class="for-desk"> (or anywhere on this page)</span><span class="for-touch"> (touch and hold, then Paste)</span>. It fills straight away. Locked values (<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>) are kept.</span></li>
+        <li class="for-desk"><span><button type="button" class="small primary" id="copyReader">Copy game reader</button> paste it into the Console, press <kbd>Enter</kbd>. A box appears at the bottom right of the game. It only reads.</span></li>
+        <li class="for-touch"><span>On your game tab, run the <b class="bmName">FF live</b> bookmark (make it above). A box appears at the bottom right of the game. It only reads.</span></li>
+        <li><span><span class="for-desk">Click</span><span class="for-touch">Tap</span> <b>Copy data</b> there, then paste in the box here<span class="for-desk"> (or anywhere on this page)</span><span class="for-touch"> (touch and hold, then Paste)</span>. Locked values (<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>) are kept.</span></li>
       </ol>
       </div>
       <div class="paste">
@@ -535,7 +535,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   document.getElementById("ff-reader-box")?.remove();
   const V = 4, GAP = 900, CLICK = 1500;   // the game blocks fast clicks: page reads at least GAP ms apart, clicks in Configuration CLICK ms
   const MODE = "__FF_MODE__", TAG = /^__/.test(MODE) ? "" : MODE;   // the calculator mode this reader was copied for (Mode 12i or Mode 14)
-  const log = m => console.log("%c[FF] " + m, "color:#B4451C;font-weight:bold");
+  const log = m => console.log("%c[FF] " + m, "color:#2445A8;font-weight:bold");
   const toNum = s => s == null ? null : +String(s).replace(/[^\d.]/g, "");
   const dom = h => new DOMParser().parseFromString(h, "text/html");
   const text = h => dom(h).body.textContent.replace(/\s+/g, " ");
@@ -899,11 +899,11 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   document.body.appendChild(host);
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
   const say = m => { msg = m; paint(); };
-  const CSS = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.b{width:min(330px,calc(100vw - 32px));background:#FAFBF8;color:#18231E;border:2px solid #B4451C;border-radius:8px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  const CSS = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.b{width:min(330px,calc(100vw - 32px));background:#FAFBF8;color:#18231E;border:2px solid #2445A8;border-radius:8px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
       .h{display:flex;align-items:center;gap:6px}.h b{flex:1;font-weight:700}.x{border:0;background:none;cursor:pointer;font-size:16px;color:#18231E;padding:0 4px}
       p{margin:6px 0}p:empty{display:none}.m{color:#5a6660;font-size:12px}.w{color:#9a3412}.ok{color:#15803d;font-weight:600}
-      .r{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}button.a{border:1px solid #999;background:#fff;color:#18231E;border-radius:5px;padding:6px 10px;cursor:pointer}button.p{background:#B4451C;border-color:#B4451C;color:#fff;font-weight:600}button:disabled{opacity:.55;cursor:default}
-      .pill{display:inline-flex;gap:6px;align-items:center;background:#FAFBF8;color:#18231E;border:2px solid #B4451C;border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600}
+      .r{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}button.a{border:1px solid #999;background:#fff;color:#18231E;border-radius:5px;padding:6px 10px;cursor:pointer}button.p{background:#2445A8;border-color:#2445A8;color:#fff;font-weight:600}button:disabled{opacity:.55;cursor:default}
+      .pill{display:inline-flex;gap:6px;align-items:center;background:#FAFBF8;color:#18231E;border:2px solid #2445A8;border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600}
       @media (pointer:coarse){button.a{min-height:42px;padding:8px 14px}.x{min-width:40px;min-height:40px}.pill{min-height:42px}}
 </style>`;
   let shape = "";
@@ -2584,7 +2584,7 @@ function paintSec(){
     box.hidden = false;
     if (box.dataset.state !== "noteam") {
       box.dataset.state = "noteam"; Sec.form = "";
-      box.innerHTML = `<div class="sec-row good"><span class="sec-ic">${LOCK_ICON}</span><p><b>Opened with the team passcode.</b> This web copy keeps your numbers on this device only. Fill it from your game (Auto-fill below). For numbers shared with your team, use the <a href="https://claude.ai/artifact/LkEX5Y7jEsytXQ2qcb7EBE" target="_blank" rel="noopener">team version</a>.</p><button type="button" class="small" id="secLockNow">Lock this device</button></div>`;
+      box.innerHTML = `<div class="sec-row good"><span class="sec-ic">${LOCK_ICON}</span><p><b>Unlocked.</b> Numbers stay on this device. Shared numbers live in the <a href="https://claude.ai/artifact/LkEX5Y7jEsytXQ2qcb7EBE" target="_blank" rel="noopener">team version</a>.</p><button type="button" class="small" id="secLockNow">Lock this device</button></div>`;
     }
   } else if (!gated) {
     box.hidden = false;
@@ -2794,7 +2794,7 @@ function renderPlan(){
   const info = (html, cls = "") => `<li class="info${cls ? " " + cls : ""}">${html}</li>`;
   const tr = (id, label) => { acts.push(id); const on = isDone(id);
     return `<tr${on ? ' class="done"' : ""}><td class="tk tkc"><label class="tkl"><input type="checkbox" class="tick" id="t-${fid(id)}" data-done="${esc(id)}"${on ? " checked" : ""} aria-label="Done: ${esc(label)}"></label></td>`; };
-  const card = (id, code, title, big, body) => `<section class="blk sep" id="sec-${id}" aria-labelledby="h-${id}"><header class="blk-h"><span class="code">${code}</span><h3 id="h-${id}">${title}</h3>${big ? `<span class="fig">${big}</span>` : ""}</header>${body}</section>`;
+  const card = (id, code, title, big, body) => `<section class="blk sep" id="sec-${id}" aria-labelledby="h-${id}"><header class="blk-h"><h3 id="h-${id}">${title}</h3>${big ? `<span class="fig">${big}</span>` : ""}</header>${body}</section>`;
   const thP = P.map(p => `<th class="n">${esc(p.name)}</th>`).join("");
 
   const okM = R.newM.filter(m => m.ok), noM = R.newM.filter(m => !m.ok);
@@ -2847,7 +2847,7 @@ function renderPlan(){
     `<p class="hint">${PL.stage === "prep" ? "Prep stage: all of this can be set up before the day starts. " : ""}Do them top to bottom: deals and space come before the stock that needs them, machines before their raw materials. About ${PL.estSecNow}s for the bot (${PL.limits.botSec}s a day${PL.stage === "prep" ? " in the prep stage" : ""}). Every number comes from this plan, and each section stays inside its budget below.${PL.rescue ? " <b>Rescue day: only must-do steps.</b>" : ""}</p>
     <div class="tw"><table class="pt bsteps"><thead><tr><th class="n">#</th><th class="sec-h">Section</th><th>Step</th><th class="n">Budget</th></tr></thead><tbody>${ALL.map(stepRow).join("")}</tbody></table></div>
     ${PL.next.length ? `<p class="hint">Next days (if a new plan is late): ${PL.next.map(d => `day ${d.day} cash ≥ ${fk(d.expect.cash)}${d.marks.length ? ` (${d.marks.map(x => esc(x.why)).join(", ")})` : ""}`).join(" · ")}. Re-plan on day ${PL.replanOn.length ? PL.replanOn.join(", ") : "every new day"}.</p>` : ""}
-    <div class="row"><button type="button" class="small" id="copyBot">Copy bot plan (JSON)</button><span class="hint">Plan ${esc(PL.planId)} · the bot runs ${PL.steps.length} of these${PL.ok ? "" : " · a check failed"}</span></div>`);
+    <div class="row"><button type="button" class="small" id="copyBot">Copy bot plan (JSON)</button><span class="hint">The bot runs ${PL.steps.length} of these${PL.ok ? "" : ". A check failed"} (plan ${esc(PL.planId)}).</span></div>`);
 
   // section budgets
   const spentBy = {}, seenStep = id => ALL.find(x => x.id === id) || SEEN[MODE]?.map.get(id);
@@ -3021,7 +3021,7 @@ function renderPlan(){
   const chips = [["steps", "Steps", PL ? `${PL.steps.length}` : "", !!PL], ["budget", "Budgets", fk(B.total), true], ["cashtl", "Cash days", fk(T.low.net), true], ["stores", "Stores", R.opened.length ? `+${R.opened.length}` : "—", true], ["prod", "Production", okM.length ? `+${okM.length}` : "—", has.prod],
     ["stock", "Stock", fk(R.spent.stock), true], ["space", "Space", `${f0(needM2)} m²`, true], ["b2b", "B2B", fk(R.b2bFund), has.b2b], ["mkt", "Marketing", fk(R.mkTotal), has.mkt], ["cost", "Cost", `${fk(goodsDay + runDay)}/day`, true], ["price", "Prices", "", true], ["compare", "Strategies", "", true]].filter(x => x[3]);
   const bar = `<div class="plan-bar"><div class="pb-row">
-      <div class="pb-day"><h2>Plan · day ${f0(R.day)} of ${f0(R.maxDay)}</h2><p><span>${R.left} days left</span><span class="pill">${R.phase}</span>${R.emerg ? '<span class="pill bad">Emergency</span>' : ""}</p></div>
+      <div class="pb-day"><h2>Day ${f0(R.day)} of ${f0(R.maxDay)}</h2><p><span>${R.left} days left</span><span class="pill">${R.phase}</span>${R.emerg ? '<span class="pill bad">Emergency</span>' : ""}</p></div>
       <div class="seg" role="group" aria-label="Strategy">${Object.entries(STRAT).map(([k, v]) => `<button type="button" id="st-${k}" data-strat="${k}" aria-pressed="${S.strategy === k}" title="${esc(v.note)}">${v.label}</button>`).join("")}</div>
       <div class="pb-act"><button type="button" class="primary" id="copyTop">Copy plan</button></div>
     </div></div>
@@ -3092,7 +3092,7 @@ function renderTop(){
   $("srcDot").className = "dot" + (game ? " ok" : "") + (live ? " live" : "");
   const t = S.pastedAt ? new Date(S.pastedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
   $("srcText").innerHTML = live ? `Live from your game: day <b>${f0(n(S.g.day))}</b>, updated ${clock(last)}.`
-    : game ? `Filled from your game (day <b>${f0(n(S.g.day))}</b>${t ? `, ${t}` : ""}). ${n(S.liveAt) ? "The live link is quiet: is the game tab still open?" : "Paste again any time to refresh."}` : `Not filled yet: using the <b>${S.preset === "juice" ? "Juice · Korea" : "Coffee · Germany"}</b> preset numbers.`;
+    : game ? `Filled from your game (day <b>${f0(n(S.g.day))}</b>${t ? `, ${t}` : ""}). ${n(S.liveAt) ? "The live link is quiet: is the game tab still open?" : "Paste again any time to refresh."}` : `Sample numbers until your game fills them (${S.preset === "juice" ? "juice" : "coffee"}). Cities and days come from the game.`;
   document.querySelectorAll("[data-preset]").forEach(b => b.setAttribute("aria-current", S.preset === b.dataset.preset ? "true" : "false"));
 }
 let XS = null, PLAN = null;
@@ -3372,7 +3372,7 @@ function renderLive(){
     : L.url ? "" : "Paste your game's address once (or paste game data into the Game data box: the address is remembered).")
     + (L.bot && L.state === "linked" ? ` <span class="hint">${L.bot.on ? `Bot linked: it has today's plan${PLANS[MODE] ? ` (${PLANS[MODE].steps.length} steps)` : ""}.` : L.bot.stop ? `Bot stopped at ${clock(L.bot.at)}${L.bot.reason ? `: ${esc(L.bot.reason)}` : ""}.` : `Bot: day ${f0(L.bot.day)} done at ${clock(L.bot.at)}, ${L.bot.done} steps done, ${L.bot.skip} skipped, ${L.bot.fail} failed.`}</span>` : "")
     + other.map(k => ` <span class="hint">Mode ${k} is live too${LV[k].day ? ` (day ${f0(LV[k].day)})` : ""}.</span>`).join("");
-  const h = $("importHint"); if (h) h.textContent = L.state === "linked" ? `Live ✓ · Mode ${MODE}` : `Live, or ${NOCONSOLE ? 2 : 3} steps by hand`;
+  const h = $("importHint"); if (h) h.textContent = L.state === "linked" ? `Live, Mode ${MODE}` : "Live, or by hand";
 }
 /* teammates get only what changed, so their edits to other fields aren't overwritten; a new list (products, cities…) is sent whole */
 function shareDiff(prev, next){
@@ -3569,7 +3569,7 @@ setInterval(() => {
 /* ---------- modes ---------- */
 function paintMode(){
   document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === MODE)));
-  $("modeName").textContent = `Team FF · MonsoonSIM · Mode ${MODE}`;
+  $("modeName").textContent = `Team FF, Mode ${MODE}`;
   $("gameUrl").value = LV[MODE].url;
   const bm = $("bm"); bm.href = bmUrl(); bm.textContent = `FF live ${MODE}`;
   document.querySelectorAll(".bmName").forEach(e => { e.textContent = `FF live ${MODE}`; });

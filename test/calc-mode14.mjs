@@ -52,6 +52,9 @@ check("Mode 14 starts from the juice products", await p.evaluate(() => S.P[0].na
 await p.evaluate(() => { S.g.b2bShare = 20; saveLocal(); });
 await p.reload(); await p.evaluate(pass => unlockTeam(pass, false), PASS); await p.waitForTimeout(1500);
 check("copied only once", await p.evaluate(() => S.g.b2bShare) === 20, await p.evaluate(() => S.g.b2bShare));
+const cities = await p.evaluate(() => applyGame({day: 3, maxDay: 30, cash: 1e6, products: [{name: "Apple Juice", price: 9, cost: 3}], cities: [{name: "Leeds", rent: 40}, {name: "York", rent: 30}], forecast: {}}).C.map(c => c.name).join(","));
+check("city names come from each game", cities === "Leeds,York", cities);
+check("no fixed country named before a game fills it", !/Korea|Germany/.test(await p.evaluate(() => document.getElementById("srcText").textContent + document.getElementById("presetMenu").textContent)));
 check("no page errors", errs.length === 0, errs.join(" | "));
 await b.close();
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASS");

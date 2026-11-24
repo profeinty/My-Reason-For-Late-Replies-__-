@@ -3,12 +3,12 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.2", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.3", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
   const log = m => {
-    console.log("%c[FF] " + m, "color:#B4451C;font-weight:bold");
+    console.log("%c[FF] " + m, "color:#2445A8;font-weight:bold");
     LOG.push([Date.now(), TAG, String(m).slice(0, 400)]); if (LOG.length > 400) LOG = LOG.slice(-400);
     try { localStorage.setItem(LOGK, JSON.stringify(LOG)); } catch (e) {}
   };
@@ -459,8 +459,8 @@
     dropBox();
     const h = document.createElement("div"); h.id = "ff-calc"; h.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483646";
     const r = h.attachShadow({mode: "open"});
-    r.innerHTML = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.c{background:#FAFBF8;border:2px solid #B4451C;border-radius:8px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.25)}
-      .h{display:flex;align-items:center;gap:6px;background:#B4451C;color:#fff;padding:5px 8px}.h b{flex:1;font-weight:700}.h button{border:1px solid #fff;background:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer}
+    r.innerHTML = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.c{background:#FAFBF8;border:2px solid #2445A8;border-radius:8px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+      .h{display:flex;align-items:center;gap:6px;background:#2445A8;color:#fff;padding:5px 8px}.h b{flex:1;font-weight:700}.h button{border:1px solid #fff;background:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer}
       .c{width:min(464px,calc(100vw - 32px))}.c.f{width:auto;max-width:calc(100vw - 32px)}.w{overflow:hidden}.c.f .w{width:0;height:0}
       iframe{display:block;border:0;width:min(460px,calc(100vw - 36px));height:min(620px,calc(100vh - 120px));background:#fff}</style>
       <div class="c"><div class="h"><b data-f="t"></b><button data-c="tab" title="Open the calculator in its own tab instead">Own tab</button><button data-c="fold"></button></div><div class="w"><iframe title="FF calculator" allow="clipboard-read; clipboard-write"></iframe></div></div>`;
@@ -554,22 +554,22 @@
   document.body.appendChild(host);
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
   const say = m => { msg = m; paint(); };
-  const CSS = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.b{width:min(330px,calc(100vw - 32px));background:#FAFBF8;color:#18231E;border:2px solid #B4451C;border-radius:8px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  const CSS = `<style>:host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}.b{width:min(330px,calc(100vw - 32px));background:#FAFBF8;color:#18231E;border:2px solid #2445A8;border-radius:8px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
       .h{display:flex;align-items:center;gap:6px}.h b{flex:1;font-weight:700}.x{border:0;background:none;cursor:pointer;font-size:16px;color:#18231E;padding:0 4px}
       p{margin:6px 0}p:empty{display:none}.m{color:#5a6660;font-size:12px}.w{color:#9a3412}.ok{color:#15803d;font-weight:600}
-      .r{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}button.a{border:1px solid #999;background:#fff;color:#18231E;border-radius:5px;padding:6px 10px;cursor:pointer}button.p{background:#B4451C;border-color:#B4451C;color:#fff;font-weight:600}button:disabled{opacity:.55;cursor:default}
-      .h{cursor:move;user-select:none;touch-action:none;margin:-10px -12px 0;padding:8px 12px;background:#B4451C;color:#fff;border-radius:5px 5px 0 0}.h .x{color:#fff}
-      .tabs{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0 2px;border-bottom:1px solid #D0D8D1}.tabs button{border:0;background:none;padding:5px 8px;cursor:pointer;color:#55655D;border-bottom:2px solid transparent;margin-bottom:-1px}.tabs button[aria-selected="true"]{color:#18231E;font-weight:600;border-bottom-color:#B4451C}
+      .r{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}button.a{border:1px solid #999;background:#fff;color:#18231E;border-radius:5px;padding:6px 10px;cursor:pointer}button.p{background:#2445A8;border-color:#2445A8;color:#fff;font-weight:600}button:disabled{opacity:.55;cursor:default}
+      .h{cursor:move;user-select:none;touch-action:none;margin:-10px -12px 0;padding:8px 12px;background:#2445A8;color:#fff;border-radius:5px 5px 0 0}.h .x{color:#fff}
+      .tabs{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0 2px;border-bottom:1px solid #D0D8D1}.tabs button{border:0;background:none;padding:5px 8px;cursor:pointer;color:#55655D;border-bottom:2px solid transparent;margin-bottom:-1px}.tabs button[aria-selected="true"]{color:#18231E;font-weight:600;border-bottom-color:#2445A8}
       .pane{max-height:min(320px,55vh);overflow:auto}table{border-collapse:collapse;width:100%;margin-top:4px}td,th{padding:3px 4px;border-top:1px solid #E2E7E1;text-align:left;vertical-align:top}th{font-size:11px;color:#55655D;font-weight:600}td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
       .bar{height:6px;background:#E2E7E1;border-radius:3px;overflow:hidden;margin-top:2px}.bar i{display:block;height:100%;background:#2A7546}.bar i.hi{background:#B2261E}
       ul{margin:4px 0;padding-left:18px}li{margin:3px 0}.k{color:#55655D;font-size:11px}
-      .heads:empty{display:none}.heads{margin:8px 0 0;padding:6px 10px;border:2px solid #B4451C;border-radius:8px;background:#FFF4E5;color:#7c2d12}.heads p{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+      .heads:empty{display:none}.heads{margin:8px 0 0;padding:6px 10px;border:2px solid #B86A00;border-radius:8px;background:#FBEFC9;color:#5C3A00}.heads p{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
       .stopbar:empty{display:none}.stopbar{margin-top:8px}button.stop{width:100%;background:#B2261E;border-color:#B2261E;color:#fff;font-weight:700}
       input[type=number]{font:inherit;padding:2px 4px;border:1px solid #999;border-radius:4px}label{cursor:pointer}
       button.big{width:100%;margin:4px 0;padding:9px;font-size:15px;font-weight:700}button.go{background:#2A7546;border-color:#2A7546;color:#fff}
       textarea{width:100%;min-height:64px;margin-top:4px;font:12px/1.3 ui-monospace,monospace;border:1px solid #999;border-radius:4px;padding:4px}summary{cursor:pointer;margin-top:10px}
       td.st{white-space:nowrap;font-weight:600}td.done{color:#15803d}td.failed{color:#B2261E}td.skipped{color:#5a6660;font-weight:400}td.checking{color:#15803d;font-weight:400}
-      .pill{display:inline-flex;gap:6px;align-items:center;background:#FAFBF8;color:#18231E;border:2px solid #B4451C;border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600}
+      .pill{display:inline-flex;gap:6px;align-items:center;background:#FAFBF8;color:#18231E;border:2px solid #2445A8;border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600}
       @media (pointer:coarse){button.a{min-height:42px;padding:8px 14px}.x{min-width:40px;min-height:40px}.pill{min-height:42px}}
 </style>`;
   const TABS = [["live", "Live"], ["today", "Today"], ["stores", "Stores"], ["stock", "Stock"], ["checks", "Checks"], ["deals", "Deals"], ["bot", "Bot"]];
@@ -2036,9 +2036,9 @@
     host.style.display = hidden ? "none" : "";
     const put = (f, html) => { const el = root.querySelector(f); if (el && el.__h !== html) { el.__h = html; el.innerHTML = html; } };
     const heads = headsNow();
-    if (mini) { put(".pill", `FF live${TAG ? " " + esc(TAG) : ""} · day ${day} ${ok ? "✓" : ""}${BOT.on ? " · ● bot" : ""}${heads.length ? " · ⚠ heads-up" : ""}`); return; }
+    if (mini) { put(".pill", `FF day ${day}${ok ? " ✓" : ""}${BOT.on ? ", bot on" : ""}${heads.length ? ", ⚠ heads-up" : ""}`); return; }
     put('[data-f="heads"]', heads.length ? `<b>Heads-up</b> <span class="k">from the calculator: cancel it in the game if you want, the bot won't</span>${heads.map(a => `<p><span>${esc(a.text)}</span><button class="a" data-a="hush" data-id="${esc(a.id)}">Hide</button></p>`).join("")}` : "");
-    put('[data-f="title"]', `FF live${TAG ? " · Mode " + esc(TAG) : ""} · day ${day}${D && D.maxDay ? "/" + esc(D.maxDay) : ""}`);
+    put('[data-f="title"]', `FF live, day ${day}${D && D.maxDay ? " of " + esc(D.maxDay) : ""}${TAG ? " (Mode " + esc(TAG) + ")" : ""}`);
     put('[data-f="link"]', (ok ? `<span class="ok">Linked ✓</span> The calculator follows the game live${link.via === "frame" ? " (it's at the bottom left of this tab)" : ""}.`
       : link.state === "looking" ? esc(calcWhy().replace(/^./, c => c.toUpperCase())) + "…"
       : `Not linked. ${CALC ? '<button class="a" data-a="calc">Open the calculator</button> or click' : "Click"} <b>Copy data</b> and paste it in the calculator (or use <b>Go live</b> there).`)
