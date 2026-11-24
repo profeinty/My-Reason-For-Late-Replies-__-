@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.2", LIST = 1100, CLICK = 1500;
+  const V = 4, BUILD = "v13.2", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -40,8 +40,7 @@
   };
   const pace = async (k, ms = gaps[k], urgent) => {
     if (urgent) URG[k] = (URG[k] || 0) + 1;
-    const join = () => k === "list" && Date.now() - (lastAt[k] || 0) < 40 && Date.now() - (slowAt[k] || 0) > 60000;   // list reads sent together go as one burst: the game only refuses reads one after another
-    try { for (let w; (w = Math.max((lastAt[k] || 0) + ms - Date.now(), urgent ? 0 : URG[k] ? 30 : hold(k))) > 0;) { if (join()) return; await sleep(w); } lastAt[k] = Date.now(); }
+    try { for (let w; (w = Math.max((lastAt[k] || 0) + ms - Date.now(), urgent ? 0 : URG[k] ? 30 : hold(k))) > 0;) await sleep(w); lastAt[k] = Date.now(); }
     finally { if (urgent) URG[k]--; }
   };
   const LOCKED = /PRC|PRICE/i;

@@ -570,17 +570,6 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   await ctx.close();
 }
 { 
-  await new Promise(r => setTimeout(r, 1100));   // the last case's list reads out of the way, so this page starts with no "slow down"
-  const {ctx, p, errs} = await open("", MEM, "&so=1");
-  await p.waitForTimeout(1200); const t0 = Date.now();
-  const ms = await p.evaluate(async () => { const t = Date.now(); await Promise.all([window.__ff.orders(), window.__ff.orders(), window.__ff.orders()]); return Date.now() - t; });
-  const L = await server(), log = L.log.filter(x => x.t >= t0 && /^list:/.test(x.x || ""));
-  check("X 3 list reads sent together all go through, none told to slow down", log.filter(x => x.m === "GET").length >= 3 && !log.some(x => x.m === "SLOW"), log.map(x => `${x.t - t0}ms ${x.m} ${x.x}`).join(" | "));
-  check("X and take under 1.5 s (2 pages each), not 1.1 s per read", ms < 1500, ms + " ms");
-  check("X no page errors", !errs.length, errs.join("; "));
-  await ctx.close();
-}
-{ 
   const {ctx, p, errs} = await open();
   const setWh = (city, m2) => p.evaluate(new Function(`${sh('[data-wh="city"]')}.value = ${JSON.stringify(city)}; ${sh('[data-wh="m2"]')}.value = "${m2}"; ${sh('[data-wh="set"]')}.click();`));
   await setWh("Dusseldorf", 2000);
