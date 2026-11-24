@@ -27,7 +27,7 @@ check("still orders stock for open stores", ST.steps.some(s => s.op === "vendorP
 
 const B = game(5e6); B.g.bidLog = ["Apple Juice, 10, 9.4, 9.6, lost, 2", "Apple Juice, 10, 8.8, 9.0, lost, 4"].join("\n");
 const M = E.bidModel(B, 5), R = E.plan(B, "balanced"), pick = E.bidPick(M, {name: "Apple Juice", floorEach: 5}, {maxBid: 20}, R);
-check("bids 0.01 under the last lowest rival bid", pick.price === 17.59, JSON.stringify(pick.price));
+check("bids 0.40 under the last lowest rival bid", pick.price === 17.2, JSON.stringify(pick.price));
 const low = E.bidPick(M, {name: "Apple Juice", floorEach: 19}, {maxBid: 20}, R);
 check("never under the floor", low.price >= 19, low.price);
 
@@ -35,7 +35,7 @@ check("never under the floor", low.price >= 19, low.price);
 const b = await chromium.launch(process.env.CHROMIUM ? {executablePath: process.env.CHROMIUM} : {});
 const ctx = await b.newContext(), p = await ctx.newPage(), errs = [];
 p.on("pageerror", e => errs.push(e.message));
-await p.goto(BASE + "/calc/");
+await fetch(BASE + "/reset?calc=real"); await p.goto(BASE + "/calc/");
 await p.evaluate(async pass => { const salt = b64(crypto.getRandomValues(new Uint8Array(16))), key = await deriveTeamKey(pass, salt, 1000);
   localStorage.setItem(SEC.flag, JSON.stringify({v: 1, salt, iter: 1000, check: await sealV(SEC.check, key)}));
   const old = fromPreset("coffee"); Object.assign(old.g, {b2bShare: 33, b2bPricePct: 44, b2bMin: 11, b2bBoost: 1.5, bidLog: "Americano, 10, 9, 8, lost, 3", salary: 9999});

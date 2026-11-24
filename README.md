@@ -26,7 +26,7 @@ It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag fo
 
 The Deals tab checks B2B > B2B Offers and shows which open deals it would grab. Smart mode: enough stock in the warehouses and price at least cost x margin (default 1.15); bids go in 3% under the max price. Grab all mode skips those checks. One deal per product per day (the game's limit). The Deals tab only previews; the Bot tab accepts and bids on the deals the calculator's plan picks. (The Auto tab and its auto-click were removed in v11.)
 
-## Bot (reader v13.1)
+## Bot (reader v13.2)
 
 The Bot tab follows the calculator's plan: every quantity, price and budget comes from the calculator, nothing is a fixed number in the bot.
 
@@ -36,6 +36,7 @@ The Bot tab follows the calculator's plan: every quantity, price and budget come
 4. After the plan's steps it ships won B2B orders (and Web Market orders) from the warehouse stock, earliest due first, so they aren't late.
 5. It approves its own requests. In the game each order, rental and expense waits as "Requested" on its Transactions screen until someone presses ✓. While the next sections send, the bot reads those screens and approves only its own new requests from today (by the same player as its other requests). It never approves a teammate's request, an older one, or a price change, and never presses Cancel. If the game refuses an approval it tries once more, then says which requests still wait.
 6. From 4/10 of the game on (day 24 of 60, day 32 of 80) it takes fixed-price B2B deals the moment a day starts, without waiting for the calculator: only deals the Deals tab would grab (in stock in the warehouses after what won orders still need, price at least cost x margin and the plan's floor), one per product a day. Bids still come from the plan. Untick **Take fixed-price B2B deals the moment a day starts** in the Bot tab to leave every deal to the plan.
+   **Demon grab-all** (button in the Deals tab): from day 1 it takes every fixed-price deal and bids on every bid offer (97% of the max) the moment a day starts, with no stock, profit, floor or one-per-product checks. Press it again to go back to smart.
 7. **Warehouse space** in the Bot tab: pick a warehouse, type its size in m² (steps of 500) and press **Set**. The bot then keeps that warehouse at that size every day (it rents more or gives space back, never all of it) in place of the calculator's warehouse steps for it, within the cash reserve. **Let the calculator decide** hands it back.
 8. Heads-up: when the calculator sees a daily cost going up (the market report fee, salaries, rents) or a game news line saying one will, its warning shows on top of every tab of the FF panel, so the team can cancel it in the game before it's charged. The bot never cancels anything. **Hide** hides a warning.
 9. Stop it with its own button, the Stop bar or Esc.

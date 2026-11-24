@@ -14,7 +14,7 @@ const PLACE = {11: "Berlin Retail", 13: "Hamburg Retail", 17: "Cologne Retail", 
 const ME = "FF Player", MATE = "Denzel Kurnia";   // the bot's player, and a teammate on another account
 const TXMENUS = ["RTL", "MKT", "ECM", "WHS", "LOG", "PRD", "MRP"];
 const KEYS = ["id", "batchid", "productCode", "from", "to", "qnt", "qntAlloc", "dayIn", "priority", "exp", "status"];
-let S, log, REAL_CALC = false, STUB = "", lastList = 0;
+let S, log, REAL_CALC = false, STUB = "", lastList = 0, burstAt = 0;
 const LIST_MS = 1000, SLOWDOWN = "<div class='box_info'>Slow down, you click too fast. Please try again</div>";   // as the real game: list screens (table_record) under a second apart are refused
 const so = (id, o) => ({id, product: "P1", qty: 1000, kind: "bid", maxBid: 15, each: null, minBidders: 1, due: 9, penalty: 6000, ourBid: null, bids: [], req: 2, result: 3, status: "Completed", allocated: 0, allocDay: null, delivered: null, offer: id - 11, ...o});
 const reset = (o = {}) => {
@@ -291,7 +291,8 @@ http.createServer((req, res) => {
     if (u.pathname === "/day") { S.day = +q.get("d"); if (q.get("offers")) for (const k in S.offers) S.offers[k] = "open"; if (q.get("fee")) S.fee = +q.get("fee"); if (q.get("news")) S.news = q.get("news"); return send("ok"); }   // offers=1: the day's offers are open again; fee=, news=: the market report's fee, a news line
     if (u.pathname === "/m") { log.push({t: Date.now(), m: "GET", x: q.get("x")}); return send(page(MENU[q.get("x")]())); }
     if (u.pathname === "/table_record") {
-      const now = Date.now(), early = now - lastList < LIST_MS || S.slow > 0; lastList = now;
+      const now = Date.now(), join = now - burstAt < 50 && !S.slow, early = !join && (now - lastList < LIST_MS || S.slow > 0);   // as measured on the real game: reads sent together (one burst) all go through
+      if (!join) { lastList = now; if (!early) burstAt = now; }
       if (early) { if (S.slow > 0) S.slow--; log.push({t: now, m: "SLOW", x: "list:" + q.get("tpe")}); return send(SLOWDOWN); }
       log.push({t: now, m: "GET", x: "list:" + q.get("tpe"), q: u.search}); const from = +q.get("latestPage") || 0, tpe = q.get("tpe");
       return send(page(TXMENUS.includes(tpe) ? txPage(tpe, from, from + 5) : tpe === "B2B_IN" ? MENU.b2b() : soPage(from, from + 5))); }

@@ -172,7 +172,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v13\.1/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v13\.2/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -551,6 +551,33 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const L = await server(), rep = await p.evaluate(() => window.__ff.report());
   check("W3 practice: would take offer 12, nothing sent", /practice, day 12: would take offer 12: 3,000 Americano at 14 at once/.test(rep) && !L.log.some(x => x.m === "POST"));
   check("W3 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ 
+  const {ctx, p, errs} = await open("", MEM, "&wfg=1");
+  await click(p, '[data-tab="deals"]'); await click(p, '[data-b2b="demon"]'); await click(p, '[data-tab="bot"]');
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const t0 = Date.now(); await fetch(BASE + "/day?d=6&offers=1");
+  await p.waitForFunction(() => window.__ff.bot.run && window.__ff.bot.run.day === 6 && window.__ff.bot.run.took != null, null, {timeout: 60000});
+  await p.waitForTimeout(1500);
+  const L = await server(), log = L.log.filter(x => x.t >= t0 && x.m === "POST"), deals = log.filter(x => x.cmd === "B2B_DEAL"), bids = log.filter(x => x.cmd === "B2B_BID");
+  const mode = await p.evaluate(() => (JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14:b2b")) || {}).mode);
+  check("W4 demon grab-all button turns grab-all on", mode === "all", mode);
+  check("W4 day 6 (before 4/10): both Americano deals taken, not one per product", deals.length === 2 && L.S.offers[12] === "in" && L.S.offers[14] === "in", deals.map(x => x.q).join(", "));
+  check("W4 bids on the bid offer too", bids.length === 1 && L.S.offers[13] === "in", bids.map(x => x.q).join(", "));
+  check("W4 all sent under 1.5 s after the new day", log.length && Math.max(...[...deals, ...bids].map(x => x.t)) - t0 < 1500, log.length ? (Math.max(...log.map(x => x.t)) - t0) + " ms" : "");
+  check("W4 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ 
+  await new Promise(r => setTimeout(r, 1100));   // the last case's list reads out of the way, so this page starts with no "slow down"
+  const {ctx, p, errs} = await open("", MEM, "&so=1");
+  await p.waitForTimeout(1200); const t0 = Date.now();
+  const ms = await p.evaluate(async () => { const t = Date.now(); await Promise.all([window.__ff.orders(), window.__ff.orders(), window.__ff.orders()]); return Date.now() - t; });
+  const L = await server(), log = L.log.filter(x => x.t >= t0 && /^list:/.test(x.x || ""));
+  check("X 3 list reads sent together all go through, none told to slow down", log.filter(x => x.m === "GET").length >= 3 && !log.some(x => x.m === "SLOW"), log.map(x => `${x.t - t0}ms ${x.m} ${x.x}`).join(" | "));
+  check("X and take under 1.5 s (2 pages each), not 1.1 s per read", ms < 1500, ms + " ms");
+  check("X no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 { 

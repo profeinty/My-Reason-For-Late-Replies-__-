@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.1", LIST = 1100, CLICK = 1500;
+  const V = 4, BUILD = "v13.2", LIST = 1100, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -40,7 +40,8 @@
   };
   const pace = async (k, ms = gaps[k], urgent) => {
     if (urgent) URG[k] = (URG[k] || 0) + 1;
-    try { for (let w; (w = Math.max((lastAt[k] || 0) + ms - Date.now(), urgent ? 0 : URG[k] ? 30 : hold(k))) > 0;) await sleep(w); lastAt[k] = Date.now(); }
+    const join = () => k === "list" && Date.now() - (lastAt[k] || 0) < 40 && Date.now() - (slowAt[k] || 0) > 60000;   // list reads sent together go as one burst: the game only refuses reads one after another
+    try { for (let w; (w = Math.max((lastAt[k] || 0) + ms - Date.now(), urgent ? 0 : URG[k] ? 30 : hold(k))) > 0;) { if (join()) return; await sleep(w); } lastAt[k] = Date.now(); }
     finally { if (urgent) URG[k]--; }
   };
   const LOCKED = /PRC|PRICE/i;
@@ -606,8 +607,8 @@
     const price = o.kind === "bid" ? Math.floor(o.maxBid * 97) / 100 : o.each, cost = costOf(costs, o.product), have = stockOf(o.product) - (used[o.product] || 0);
     const v = {price, cost, have, go: false, why: ""};
     if (o.state !== "open") { v.why = o.state === "gone" ? "taken by others" : "already in"; return v; }
-    if (B2B.taken[o.product] === (D && D.day)) { v.why = "already one for this product today"; return v; }
     if (B2B.mode === "all") { v.go = true; v.why = "grab all"; return v; }
+    if (B2B.taken[o.product] === (D && D.day)) { v.why = "already one for this product today"; return v; }
     if (cost == null) { v.why = "no cost per unit on the dashboard"; return v; }
     if (price < cost * B2B.margin) { v.why = `${price} is under cost ${cost} × ${B2B.margin}`; return v; }
     if (have < o.qty) { v.why = `only ${have.toLocaleString()} in the warehouses`; return v; }
@@ -620,7 +621,7 @@
       const v = judge(o, costs, used); if (v.go) used[o.product] = (used[o.product] || 0) + o.qty; return {...o, v};
     });
     D.b2bOffers = B2B.offers.map(offerData); mergeOffers(D.b2bOffers);
-    const seen = {}; for (const o of B2B.offers) if (o.v.go) { if (seen[o.product]) { o.v.go = false; o.v.why = "one per product per day"; } seen[o.product] = 1; }
+    const seen = {}; for (const o of B2B.offers) if (o.v.go && B2B.mode !== "all") { if (seen[o.product]) { o.v.go = false; o.v.why = "one per product per day"; } seen[o.product] = 1; }
     B2B.at = Date.now(); paint();
   };
   const paneB2B = () => {
@@ -628,6 +629,7 @@
     return `<p style="margin-top:12px"><b>B2B deals</b> <span class="k">preview: shows what it would grab</span></p>
       <p class="r"><label>Mode <select data-b2b="mode"><option value="smart" ${B2B.mode === "smart" ? "selected" : ""}>Smart: in stock and profitable</option><option value="all" ${B2B.mode === "all" ? "selected" : ""}>Grab all</option></select></label>
       <label>Margin × <input type="number" min="1" max="3" step="0.01" value="${B2B.margin}" data-b2b="margin" style="width:4.5em"></label>
+      <button class="a" data-b2b="demon">${B2B.mode === "all" ? "Demon grab-all: ON (back to smart)" : "Demon grab-all: off"}</button>
       <button class="a" data-b2b="check">${B2B.at ? "Check again" : "Check offers"}</button></p>
       ${B2B.err ? `<p class="w">${esc(B2B.err)}</p>` : ""}
       ${!B2B.at ? "" : !open.length ? '<p class="m">No open deals right now.</p>' : `<table><tr><th>Deal</th><th class="n">Price</th><th></th></tr>${open.map(o => `<tr><td>${esc(o.product)} ${n(o.qty)}<div class="k">${o.kind === "bid" ? "bid, max " + o.maxBid : "fixed"} · due day ${n(o.due)}</div></td><td class="n">${n(o.v.price)}</td><td>${o.v.go ? '<span class="ok">Grab</span>' : "Skip"}<div class="k">${esc(o.v.why)}</div></td></tr>`).join("")}</table>`}
@@ -917,7 +919,7 @@
     if (!f) { const b = errIn(h, list); return b ? {err: `the game said “${b}”`} : {ok: true, note: "no form came up after Accept"}; }
     return forOffer(f, id) ? submit(f, {}, h, day) : strange("Accept");
   };
-  const bidOn = async (card, o, price) => {
+  const bidOn = async (card, o, price, day) => {
     const c = ctl(card, /^bid$/i), u = c && urlOf(c); if (!u) return {err: "no Bid link on the offer card"};
     const h = await get(abs(u)), f = formOf(h);
     if (/similar transaction/i.test(plain(h))) return {skip: "the game takes one similar deal a day"};
@@ -928,28 +930,30 @@
     if (!pk) return {err: "couldn't tell which box takes the bid price"};
     const set = {[pk]: String(price)}, qk = boxes.find(k => k !== pk && /qty|quant/i.test(k));
     if (qk) set[qk] = String(o.qty);
-    return submit(f, set, h);
+    return submit(f, set, h, day);
   };
   const snapFrom = () => D && D.maxDay ? Math.ceil(D.maxDay*0.4) : 0;
-  const snapOn = day => mem.snap !== false && snapFrom() > 0 && day >= snapFrom();
+  const snapOn = day => B2B.mode === "all" || mem.snap !== false && snapFrom() > 0 && day >= snapFrom();
   const owedOf = prod => Object.values(BIDS.rows).map(fin).filter(o => o.so && o.result === "won" && !o.deliveredDay && prodIs(o.product, prod)).reduce((t, o) => t + Math.max(0, (o.qty || 0) - (o.allocated || 0)), 0);
-  const snapSaid = new Set();
+  const snapSaid = new Set(), snapIds = new Set();
   const snap = async (day, {h, cards}) => {
     const rec = BOT.days[dayKey(day)] = BOT.days[dayKey(day)] || newRec(), t0 = seenDay === day && dayAt ? dayAt : Date.now(), costs = dash().costs || {};
     const p = BOT.plans[day] || BOT.plans[day - 1] || {}, floors = p.floors || p.b2bBidFloor || {}, used = {}, go = [];
     for (const x of cards) {
-      const o = x.o; if (o.kind !== "fixed" || o.state !== "open" || rec.b2bProd.has(nm(o.product)) || go.some(y => prodIs(y.o.product, o.product))) continue;
+      const o = x.o, all = B2B.mode === "all"; if (o.state !== "open" || all && snapIds.has(day + ":" + o.id)) continue;
+      if (!all && (o.kind !== "fixed" || rec.b2bProd.has(nm(o.product)) || go.some(y => prodIs(y.o.product, o.product)))) continue;
       used[o.product] = owedOf(o.product);
       const v = judge(o, costs, used), fk = Object.keys(floors).find(k => prodIs(o.product, k)), floor = fk ? num(floors[fk]) : null;
-      if (v.go && floor != null && o.each < floor - 1e-9) { v.go = false; v.why = `${o.each} is under the plan's floor ${floor}`; }
-      if (v.go) { go.push(x); rec.b2bProd.add(nm(o.product)); }
+      if (all && o.kind === "bid") o.each = v.price;   // our bid
+      if (v.go && !all && floor != null && o.each < floor - 1e-9) { v.go = false; v.why = `${o.each} is under the plan's floor ${floor}`; }
+      if (v.go) { go.push(x); rec.b2bProd.add(nm(o.product)); snapIds.add(day + ":" + o.id); }
       else if (!snapSaid.has(o.id)) { snapSaid.add(o.id); log(`Bot: day ${day}, offer ${o.id} (${n(o.qty)} ${o.product} at ${o.each}) left for the plan: ${v.why}.`); }
     }
     if (!go.length) return;
     const what = o => `offer ${o.id}: ${n(o.qty)} ${o.product} at ${o.each}`;
     if (BOT.dry) { for (const {o} of go) log(`Bot: practice, day ${day}: would take ${what(o)} at once.`); return; }
     const srun = {day, notes: [], apr: {}}, ax = aprStart(srun, "b2b");
-    const res = await Promise.all(go.map(x => acceptOn(x.c, h, x.o.id, day).catch(e => ({err: e.message, unsure: true}))));
+    const res = await Promise.all(go.map(x => (x.o.kind === "bid" ? bidOn(x.c, x.o, x.o.each, day) : acceptOn(x.c, h, x.o.id, day)).catch(e => ({err: e.message, unsure: true}))));
     const ms = Date.now() - t0, took = [];
     go.forEach(({o}, i) => {
       const r = res[i];
@@ -958,7 +962,7 @@
         const d = (D.b2bOffers || []).find(d => String(d.id) === String(o.id)); if (d) d.state = "done";
         log(`Bot: day ${day}: took ${what(o)}, ${ms < 1000 ? Math.round(ms) + " ms" : sec(ms)} into the day${r.note ? ` (${r.note})` : ""}.`);
       } else {
-        if ((r.err && !r.unsure) || r.wait) rec.b2bProd.delete(nm(o.product));
+        if ((r.err && !r.unsure) || r.wait) { rec.b2bProd.delete(nm(o.product)); snapIds.delete(day + ":" + o.id); }
         const m = `Day ${day}: ${what(o)} didn't go through: ${r.skip || r.err}.`; log("Bot: " + m); if (r.unsure) BOT.warn = m;
       }
     });
@@ -984,7 +988,7 @@
         : o.kind !== (bid ? "bid" : "fixed") ? `offer ${s.offer} is a ${o.kind === "bid" ? "bid" : "fixed-price"} offer, the plan says ${s.act}`
         : s.product && !prodIs(o.product, s.product) ? `offer ${s.offer} is for ${o.product}, the plan says ${s.product}`
         : most != null && o.qty > most ? `offer ${s.offer} wants ${n(o.qty)}, more than the ${n(most)} the plan can deliver`
-        : rules.onePerProductPerDay !== false && run.b2bProd.has(nm(o.product)) ? `already a deal for ${o.product} today: the game takes one a day` : "";
+        : B2B.mode !== "all" && rules.onePerProductPerDay !== false && run.b2bProd.has(nm(o.product)) ? `already a deal for ${o.product} today: the game takes one a day` : "";
       if (no) { mark(s, "skipped", no); continue; }
       const price = bid ? s.price ?? (o.maxBid != null ? Math.floor(o.maxBid*(1 - (num(rules.bidCut) ?? 0.03))*100)/100 : null) : o.each;
       const bad = price == null ? "the plan gives no bid price" : floor != null && price < floor - 1e-9 ? `${price} is under the floor ${floor}`
@@ -2092,6 +2096,7 @@
       if (!Object.keys(W).length) delete mem.whUser;
       save(); deliver(); paint(); return;
     }
+    if (e.target.closest('button[data-b2b="demon"]')) { B2B.mode = B2B.mode === "all" ? "smart" : "all"; b2bSave(); log(B2B.mode === "all" ? "Bot: demon grab-all on: takes every B2B deal and bids on every bid offer from day 1." : "Bot: smart B2B again."); if (B2B.at) b2bCheck().catch(() => {}); paint(); return; }
     if (e.target.closest('button[data-b2b="check"]')) { b2bCheck().catch(err => { B2B.err = "Couldn't read the offers: " + err.message; paint(); }); return; }
     const a = e.target.closest("[data-a],[data-tab]"); if (!a) return;
     const k = a.dataset.a, tell = m => { note = m; noteAt = Date.now(); paint(); };

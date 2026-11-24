@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v39 (web) -->
+<!-- FF calculator v40 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -1797,9 +1797,9 @@ function bidModel(S, day){
 function bidPick(M, b, o, R){
   const mx = n(o.maxBid), floor = b.floorEach, clr = R.clearing, cut = clr ? R.CLR.cut : R.st.bidCut;
   const F = M ? M.by[b.name] || M.all : null, plain = Math.max(floor, Math.floor(mx*(1 - cut)*100)/100);
-  const L = M && M.last && (M.last[b.name] || M.last[""]);   // the team's rule: 0.01 under the lowest rival bid of the last result (ties lose)
-  if (L && mx > 0) { const pr = Math.max(floor, Math.min(mx, Math.round(L.r*mx*100)/100 - 0.01));
-    return {price: +pr.toFixed(2), winP: null, how: "under", why: `0.01 under the lowest other team's bid in the last result (${Math.round(L.r*1000)/10}% of the max), never under the floor ${f2(floor)}.`}; }
+  const L = M && M.last && (M.last[b.name] || M.last[""]);   // the team's rule: 0.40 under the lowest rival bid of the last result (ties lose)
+  if (L && mx > 0) { const pr = Math.max(floor, Math.min(mx, Math.round(L.r*mx*100)/100 - 0.4));
+    return {price: +pr.toFixed(2), winP: null, how: "under", why: `0.40 under the lowest other team's bid in the last result (${Math.round(L.r*1000)/10}% of the max), never under the floor ${f2(floor)}.`}; }
   if (!F || !(mx > 0)) return {price: plain, winP: null, how: "cut",
     why: `${Math.round(cut*100)}% under the max bid${clr ? " (clearing the warehouse)" : ""}, never under the floor ${f2(floor)}; no bid history yet to read the other teams from.`};
   const basis = clr ? b.cashEach : b.unitCost, keep = clr ? b.holdEach : 0;
