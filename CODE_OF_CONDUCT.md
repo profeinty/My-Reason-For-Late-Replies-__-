@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We, as members, contributors, and maintainers of the **Secret-FF-Doomsday-Project**, aim to maintain a project environment that supports collaboration, security, productivity, and the interests of the project.
+We, as members, contributors, and maintainers of the **My-Reason-For-Late-Replies-__-**, aim to maintain a project environment that supports collaboration, security, productivity, and the interests of the project.
 
 Everyone participating in the project is expected to follow this Code of Conduct and respect the authority of the repository owner and authorized maintainers.
 
@@ -55,7 +55,7 @@ Conduct outside these spaces may also be considered when it directly affects the
 
 Unacceptable behavior may be reported privately to the repository owner or an authorized maintainer.
 
-**Repository:** https://github.com/profeinty/Secret-FF-Doomsday-Project
+**Repository:** https://github.com/profeinty/My-Reason-For-Late-Replies-__-
 
 Please do not publish sensitive reports publicly. Reports should include relevant information, such as links, dates, screenshots, and a description of the incident, when available.
 
@@ -63,7 +63,7 @@ Reports will be reviewed at the discretion of the repository owner and maintaine
 
 ## Enforcement
 
-The Secret-FF-Doomsday-Project maintains a strict enforcement policy. The repository owner and authorized maintainers have broad discretion to manage participation and protect the project.
+The My-Reason-For-Late-Replies-__- maintains a strict enforcement policy. The repository owner and authorized maintainers have broad discretion to manage participation and protect the project.
 
 ### 1. Immediate Permanent Ban
 
@@ -84,7 +84,7 @@ A warning is not required before a permanent ban is imposed.
 
 ### 2. Owner and Maintainer Discretion
 
-**The repository owner and authorized maintainers reserve the right to permanently ban any individual from participating in the Secret-FF-Doomsday-Project at their discretion.**
+**The repository owner and authorized maintainers reserve the right to permanently ban any individual from participating in the My-Reason-For-Late-Replies-__- at their discretion.**
 
 A ban may be imposed when the owner or a maintainer determines that an individual's behavior, attitude, actions, continued participation, or relationship with the project is undesirable or incompatible with the project's interests.
 
@@ -154,7 +154,7 @@ https://www.contributor-covenant.org/
 
 ## Commitment
 
-By participating in the **Secret-FF-Doomsday-Project**, contributors acknowledge that they are expected to follow this Code of Conduct.
+By participating in the **My-Reason-For-Late-Replies-__-**, contributors acknowledge that they are expected to follow this Code of Conduct.
 
 Participation is subject to the decisions of the repository owner and authorized maintainers.
 
@@ -164,6 +164,6 @@ The project prioritizes its security, integrity, operational needs, and the disc
 
 ---
 
-**Project:** Secret-FF-Doomsday-Project  
-**Repository:** https://github.com/profeinty/Secret-FF-Doomsday-Project  
+**Project:** My-Reason-For-Late-Replies-__-  
+**Repository:** https://github.com/profeinty/My-Reason-For-Late-Replies-__-  
 **Maintained by:** Profeinty

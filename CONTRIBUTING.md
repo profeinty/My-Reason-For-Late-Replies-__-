@@ -1,10 +1,10 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to **Secret-FF-Doomsday-Project**!
+Thank you for your interest in contributing to **My-Reason-For-Late-Replies-__-**!
 
 We welcome contributions that help improve the project's quality, functionality, security, and documentation. All contributors are expected to follow these guidelines before submitting changes.
 
-**Repository:** https://github.com/profeinty/Secret-FF-Doomsday-Project
+**Repository:** https://github.com/profeinty/My-Reason-For-Late-Replies-__-
 
 ## Table of Contents
 
@@ -103,7 +103,7 @@ Follow these steps when submitting a Pull Request:
 1. Fork the repository, if necessary.
 2. Create a separate branch for your change.
 3. Make focused, clearly documented changes.
-4. Test your changes before submission.
+4. Test your changes before submission: run the stand-in game tests in `test/` (see [test/README.md](test/README.md)) for `reader.js`, and `test/calc-mode14.mjs` and `test/e2e-calc.mjs` for `calc/index.html`.
 5. Update documentation when necessary.
 6. Review your changes for accidental secrets, unrelated modifications, and errors.
 7. Push your branch to GitHub.
@@ -158,24 +158,7 @@ Security-related changes may receive additional review before approval.
 
 ## Commit Guidelines
 
-Write clear commit messages that explain the purpose of each change.
-
-Examples:
-
-- `fix: resolve application startup error`
-- `feat: add configuration validation`
-- `docs: update installation instructions`
-- `refactor: simplify request handling`
-- `test: add validation tests`
-
-These prefixes are recommendations unless the project explicitly requires a particular commit format.
-
-Avoid vague messages such as:
-
-- `changes`
-- `update`
-- `fix stuff`
-- `final version`
+This project uses short commit messages: `minor fix`, `minor add` or `minor adjust`, with no description. Explain the change in the Pull Request instead.
 
 Keep commits focused on logically related changes.
 
@@ -227,10 +210,10 @@ By submitting contributions, you acknowledge that you are expected to follow the
 
 The repository owner and authorized maintainers retain responsibility for deciding which contributions are accepted and who may participate in the project.
 
-Thank you for helping improve **Secret-FF-Doomsday-Project**.
+Thank you for helping improve **My-Reason-For-Late-Replies-__-**.
 
 ---
 
-**Project:** Secret-FF-Doomsday-Project  
-**Repository:** https://github.com/profeinty/Secret-FF-Doomsday-Project  
+**Project:** My-Reason-For-Late-Replies-__-  
+**Repository:** https://github.com/profeinty/My-Reason-For-Late-Replies-__-  
 **Maintained by:** Profeinty

@@ -2,37 +2,46 @@
 
 Hosts the FF MonsoonSIM game reader so the **FF live** bookmark can load the newest version on every click.
 
-- `reader.js` is the reader (v12). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
+- `reader.js` is the reader (v13.4). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
 - `index.html` is the install page with the bookmark for Mode 14 (Mode 12i is no longer played).
 - `ff-live.user.js` is the same loader as a Tampermonkey userscript: the FF panel opens by itself on every game tab, with no bookmark to click.
-- `calc/index.html` is the FF calculator as a web page (v33): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
+- `calc/index.html` is the FF calculator as a web page (v42, Mode 14 only): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
 - `docs/plan-format.md` is the message the calculator sends the bot each day, and the reports the bot sends back. `docs/plan-sample.json` is an example.
+- `fonts/` holds the calculator's fonts (Archivo and IBM Plex Sans, with their licenses), so the page loads nothing from other sites. `og.png` is the picture shown when a link is shared.
 - `test/` is a stand-in game for testing the bot without a real game. See [test/README.md](test/README.md).
 - `.nojekyll` makes GitHub Pages serve the files as they are.
 
 ## Setup (once)
 
-1. Push these files to the repo (here: `profeinty/Secret-FF-Doomsday-Project`).
+1. Push these files to the repo (here: `profeinty/My-Reason-For-Late-Replies-__-`).
 2. In the repo: Settings > Pages > Source: **Deploy from a branch**, branch `main`, folder `/ (root)`.
-3. Open `https://profeinty.github.io/Secret-FF-Doomsday-Project/` and drag the bookmark for your mode to the bookmarks bar.
+3. Open `https://profeinty.github.io/My-Reason-For-Late-Replies-__-/` and drag the **FF live 14** bookmark to the bookmarks bar.
 
-The repo was renamed from Monsoonsim-Project-V1 on 2026-10-18. A bookmark made from the old page still points at the old address and stops loading: delete it and drag it again from the page above.
+The repo was renamed twice (Monsoonsim-Project-V1, then Secret-FF-Doomsday-Project). GitHub forwards the old repo addresses, but GitHub Pages doesn't: a bookmark made from an old page stops loading. Delete it and drag it again from the page above.
 
 ## How the bookmark works
 
 It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag for `reader.js` with a time stamp on the address so the browser never runs an old cached copy. If the game page blocks outside scripts, it shows a message and you fall back to pasting the reader in the Console.
 
+## Mode 14
+
+- Buying goes through the game's order wizard (vendor, then place and quantities, then confirm). Once a day the bot also asks each vendor for a discount with the Negotiate link.
+- Marketing per store is 70% of the lowest store's daily sales (GBP). Once that reaches 6,000, every store gets 4,000 instead. The bot sets it through the game's marketing wizard, matching each box to its store by the city name.
+- B2B: the share of stock for B2B grows or shrinks with cash against the reserve (x0.5 to x1.5), and bids go 0.40 under the lowest rival price from the last result.
+- City names and the number of days change every game: the calculator always takes them from the game.
+- Auto Replenishment is never used: its operating costs run away.
+
 ## B2B deals (Deals tab preview)
 
 The Deals tab checks B2B > B2B Offers and shows which open deals it would grab. Smart mode: enough stock in the warehouses and price at least cost x margin (default 1.15); bids go in 3% under the max price. Grab all mode skips those checks. One deal per product per day (the game's limit). The Deals tab only previews; the Bot tab accepts and bids on the deals the calculator's plan picks. (The Auto tab and its auto-click were removed in v11.)
 
-## Bot (reader v13.2)
+## Bot (reader v13.4)
 
 The Bot tab follows the calculator's plan: every quantity, price and budget comes from the calculator, nothing is a fixed number in the bot.
 
 1. Open the game and click your FF live bookmark, then open the **Bot** tab.
 2. **Check the screens** reads every screen the bot uses and sends nothing. **Practice** does everything except send, so you can see what it would do.
-3. **Start** opens the web calculator at the bottom left of the game tab (if it isn't linked yet), takes its plan for the day and runs it in order: B2B deals and bids, machines, warehouse space, shop space, store stock, raw materials, stock for B2B, Web Market, marketing. Each section stays within its budget and cash stays above the plan's reserve. It reports each step back to the calculator and takes the next day's plan when the day changes.
+3. **Start** opens the web calculator at the bottom left of the game tab (if it isn't linked yet), takes its plan for the day and runs it in order: B2B deals and bids, machines, warehouse space, shop space, store stock, raw materials, stock for B2B, Web Market, marketing. In Mode 14 there are no machines or raw materials, and the team opens shops and warehouses by hand, so the plan has no rent steps for them. Each section stays within its budget and cash stays above the plan's reserve. It reports each step back to the calculator and takes the next day's plan when the day changes.
 4. After the plan's steps it ships won B2B orders (and Web Market orders) from the warehouse stock, earliest due first, so they aren't late.
 5. It approves its own requests. In the game each order, rental and expense waits as "Requested" on its Transactions screen until someone presses ✓. While the next sections send, the bot reads those screens and approves only its own new requests from today (by the same player as its other requests). It never approves a teammate's request, an older one, or a price change, and never presses Cancel. If the game refuses an approval it tries once more, then says which requests still wait.
 6. From 4/10 of the game on (day 24 of 60, day 32 of 80) it takes fixed-price B2B deals the moment a day starts, without waiting for the calculator: only deals the Deals tab would grab (in stock in the warehouses after what won orders still need, price at least cost x margin and the plan's floor), one per product a day. Bids still come from the plan. Untick **Take fixed-price B2B deals the moment a day starts** in the Bot tab to leave every deal to the plan.
@@ -53,7 +62,7 @@ Machines: it buys as many as the plan asks, one at a time, only while they fit o
 
 Web Market: it buys a listing only if its number, product, amount and price match the plan (never over the plan's price), and posts our own sell listing at the shop price.
 
-Safety: it never changes a selling price (the reader refuses the game's price commands), never opens a cancel-rental link, never shrinks a shop or warehouse unless the plan says release (and leaves giving up a whole location to you), checks a B2B offer's number before accepting or bidding, and counts an order whose answer got lost as bought so it is never sent twice.
+Safety: it never changes a selling price (the reader refuses the game's price commands), never opens a cancel-rental link, never sets up Auto Replenishment, never shrinks a shop or warehouse unless the plan says release (and leaves giving up a whole location to you), checks a B2B offer's number before accepting or bidding, and counts an order whose answer got lost as bought so it is never sent twice.
 
 If you use without permission and still complain(like shitty ui,etc.) just see what gaeto can do, only complain necessary bugs and give advice that's useful not ui fixing or some shi.
 
