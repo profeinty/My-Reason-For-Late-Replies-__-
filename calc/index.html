@@ -57,6 +57,7 @@ p{margin:0}
 b{font-weight:600}
 .eyebrow{font:600 .78rem/1.3 var(--f-body);letter-spacing:0;color:var(--muted)}
 .hint{font-size:.8rem;color:var(--muted)}
+output{display:block}   /* message lines: the tag screen readers announce when their text changes */
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 kbd{font:600 .74rem/1 var(--f-num);background:var(--panel);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:2px 5px;white-space:nowrap}
@@ -454,7 +455,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
     <div class="src">
       <div class="seg sm mode" id="modeSeg" role="group" aria-label="Calculator mode"><button type="button" data-mode="14" aria-pressed="true">Mode 14</button></div>
       <span class="status" id="srcState"><span id="srcText">Not filled yet: using preset numbers.</span></span>
-      <span class="team" id="team" role="status" hidden></span>
+      <output class="team" id="team" hidden></output>
       <button type="button" class="primary" id="openImport">Paste game data</button>
       <details class="menu" id="presetMenu">
         <summary class="btn">Start from</summary>
@@ -476,7 +477,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
         <p class="eyebrow">Live</p>
         <p><button type="button" class="small primary" id="goLive">Go live</button> opens your game in a new tab linked to this page<span class="for-desk"> and copies the reader. In that tab press <kbd>F12</kbd>, pick <b>Console</b>, paste, press <kbd>Enter</kbd>.</span><span class="for-touch">. This device has no Console, so in that tab you run the <b class="bmName">FF live</b> bookmark instead (below).</span> Each new day then shows here within a second or two, while the game tab stays open.</p>
         <div class="row"><label for="gameUrl" class="hint">Game address</label><input type="text" id="gameUrl" placeholder="Copy it from your game tab's address bar" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="url"></div>
-        <p class="hint" id="liveMsg" role="status"></p>
+        <output class="hint" id="liveMsg"></output>
         <p class="hint for-desk">No Console? Drag <a class="bm" id="bm" href="#" title="Drag me to your bookmarks bar">FF live</a> to your bookmarks bar, then click it on your game tab. On a tablet or phone? <a href="#" data-dev="touch">Show the tablet steps</a>.</p>
         <ul class="tab-help for-touch">
           <li><b>Make the bookmark once:</b> <button type="button" class="small" id="copyBm">Copy FF live bookmark</button> Bookmark any page, edit that bookmark, name it <b class="bmName">FF live</b> and paste over its address.</li>
@@ -495,7 +496,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
       <div class="paste">
         <label for="gameData" class="eyebrow">Game data</label>
         <textarea id="gameData" placeholder="Paste the game data here" spellcheck="false"></textarea>
-        <div class="row"><button type="button" id="fillBtn">Fill calculator</button><span class="hint" id="fillMsg" role="status"></span></div>
+        <div class="row"><button type="button" id="fillBtn">Fill calculator</button><output class="hint" id="fillMsg"></output></div>
       </div>
     </div>
   </details>
@@ -519,7 +520,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
         <label class="chk" id="lockRememberRow"><input type="checkbox" id="lockRemember" checked><span>Remember me on this device</span></label>
         <button type="submit" class="primary" id="lockGo">Open</button>
       </div>
-      <p class="lock-err" id="lockErr" role="alert"></p>
+      <output class="lock-err" id="lockErr" role="alert"></output>
     </form>
     <div id="lockForgot" hidden>
       <button type="button" class="linkbtn" id="lockForgotBtn">Forgot the passcode?</button>
@@ -529,13 +530,13 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
         <div class="fld"><label for="lockStart-p2">Type it again</label><input type="password" id="lockStart-p2" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></div>
         <label class="chk"><input type="checkbox" id="lockStart-rem" checked><span>Remember this device</span></label>
         <div class="row"><button type="submit" class="primary">Start over</button><button type="button" class="small" id="lockStartCancel">Cancel</button></div>
-        <p class="hint" id="lockStart-msg" role="status"></p>
+        <output class="hint" id="lockStart-msg"></output>
       </form>
     </div>
   </div>
 </div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="sr" id="announce" aria-live="polite"></div>
+<output class="toast" id="toast"></output>
+<output class="sr" id="announce"></output>
 
 <script type="text/plain" id="reader">(async () => {
   /* FF game reader v4 (live): read-only. Reads this MonsoonSIM game, then follows it as it runs: a new day reaches the calculator
@@ -2565,7 +2566,7 @@ const passForm = (id, button, note) => `<form class="sec-form" id="${id}" novali
       <div class="fld"><label for="${id}-p2">Type it again</label><input type="password" id="${id}-p2" autocomplete="new-password" spellcheck="false" autocapitalize="off" autocorrect="off"></div>
     </div>
     <label class="chk"><input type="checkbox" id="${id}-rem" checked><span>Remember me on this device</span></label>
-    <div class="row"><button type="submit" class="primary">${button}</button><button type="button" class="small" data-sec-cancel>Cancel</button><span class="hint" id="${id}-msg" role="status"></span></div>
+    <div class="row"><button type="submit" class="primary">${button}</button><button type="button" class="small" data-sec-cancel>Cancel</button><output class="hint" id="${id}-msg"></output></div>
     <p class="hint">${note}</p>
   </form>`;
 const LOCK_SUB = {checking: "Checking access…", signin: "Only Team FF can open this plan.", locked: "This plan is locked. Enter your team passcode to open it."};
