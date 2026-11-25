@@ -1,12 +1,16 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<title>FF MonsoonSIM Calculator</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}</style>
+<title>FF MonsoonSIM Calculator: daily stock, marketing and B2B</title>
 <meta name="description" content="Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game.">
 <link rel="canonical" href="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%232445A8%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-family=%27Arial%27 font-weight=%27700%27 font-size=%2715%27 fill=%27white%27 text-anchor=%27middle%27%3EFF%3C/text%3E%3C/svg%3E">
 <meta property="og:type" content="website">
-<meta property="og:title" content="FF MonsoonSIM Calculator">
+<meta property="og:title" content="FF MonsoonSIM Calculator: daily stock, marketing and B2B">
 <meta property="og:description" content="Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game.">
 <meta property="og:url" content="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/">
+<meta property="og:image" content="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/og.png">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; worker-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"FF MonsoonSIM Calculator","url":"https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/","applicationCategory":"GameApplication","operatingSystem":"Any","description":"Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game."}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -497,10 +501,10 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   </details>
 
   <section class="heads" id="heads" hidden aria-live="polite" aria-label="Cost warnings"></section>
-  <div class="main">
-    <section class="plan" id="plan" aria-label="Today's plan"></section>
-    <aside class="inputs" id="inputs" aria-label="Inputs"></aside>
-  </div>
+  <main class="main">
+    <section class="plan" id="plan" aria-label="Today's plan"><p class="hint">Loading the plan…</p></section>
+    <aside class="inputs" id="inputs" aria-label="Inputs"><p class="hint">Loading the inputs…</p></aside>
+  </main>
   <footer class="credit"><span class="credit-mark" aria-hidden="true">FF</span><span>© 2026 <b>FF Femboy Furries</b>. All rights reserved.</span></footer>
 </div>
 <div class="lockscreen" id="lockScreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
@@ -513,7 +517,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
         <label for="lockPass" class="sr">Team passcode</label>
         <input type="password" id="lockPass" autocomplete="current-password" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Team passcode">
         <label class="chk" id="lockRememberRow"><input type="checkbox" id="lockRemember" checked><span>Remember me on this device</span></label>
-        <button type="submit" class="primary" id="lockGo">Unlock</button>
+        <button type="submit" class="primary" id="lockGo">Open</button>
       </div>
       <p class="lock-err" id="lockErr" role="alert"></p>
     </form>
@@ -542,7 +546,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   document.getElementById("ff-reader-box")?.remove();
   const V = 4, GAP = 900, CLICK = 1500;   // the game blocks fast clicks: page reads at least GAP ms apart, clicks in Configuration CLICK ms
   const MODE = "__FF_MODE__", TAG = /^__/.test(MODE) ? "" : MODE;   // the calculator mode this reader was copied for (Mode 12i or Mode 14)
-  const log = m => console.log("%c[FF] " + m, "color:#2445A8;font-weight:bold");
+  const log = m => console.info("%c[FF] " + m, "color:#2445A8;font-weight:bold");
   const toNum = s => s == null ? null : +String(s).replace(/[^\d.]/g, "");
   const dom = h => new DOMParser().parseFromString(h, "text/html");
   const text = h => dom(h).body.textContent.replace(/\s+/g, " ");
