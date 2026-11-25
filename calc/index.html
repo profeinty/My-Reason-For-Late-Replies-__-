@@ -1,16 +1,16 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}</style>
 <title>FF MonsoonSIM Calculator: daily stock, marketing and B2B</title>
-<meta name="description" content="Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game.">
+<meta name="description" content="MonsoonSIM planner for Team FF: daily stock, marketing, B2B bids and cash, filled live from your game.">
 <link rel="canonical" href="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%232445A8%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-family=%27Arial%27 font-weight=%27700%27 font-size=%2715%27 fill=%27white%27 text-anchor=%27middle%27%3EFF%3C/text%3E%3C/svg%3E">
 <meta property="og:type" content="website">
 <meta property="og:title" content="FF MonsoonSIM Calculator: daily stock, marketing and B2B">
-<meta property="og:description" content="Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game.">
+<meta property="og:description" content="MonsoonSIM planner for Team FF: daily stock, marketing, B2B bids and cash, filled live from your game.">
 <meta property="og:url" content="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/">
 <meta property="og:image" content="https://profeinty.github.io/My-Reason-For-Late-Replies-__-/og.png">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; worker-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"FF MonsoonSIM Calculator","url":"https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/","applicationCategory":"GameApplication","operatingSystem":"Any","description":"Team FF's MonsoonSIM planner: daily stock, marketing, B2B bids and cash, filled live from your game."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"FF MonsoonSIM Calculator","url":"https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/","applicationCategory":"GameApplication","operatingSystem":"Any","description":"MonsoonSIM planner for Team FF: daily stock, marketing, B2B bids and cash, filled live from your game."}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -101,16 +101,16 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .seg.mode button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);box-shadow:none}
 .status{display:inline-flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);min-width:0}
 .status b{color:var(--ink)}
-.dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c0)}
-.dot.ok{background:var(--good);box-shadow:0 0 0 3px var(--good-bg)}
-.dot.live{animation:beat 2s ease-in-out infinite}
+.status::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--c0)}
+.status.ok::before{background:var(--good);box-shadow:0 0 0 3px var(--good-bg)}
+.status.live::before{animation:beat 2s ease-in-out infinite}
 @keyframes beat{50%{box-shadow:0 0 0 6px var(--good-bg)}}
 .status.flash{animation:flash 1.4s ease-out}
 @keyframes flash{from{background:var(--good-bg)}}
 .team{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:.82rem;color:var(--muted);min-width:0}
 .team b{color:var(--ink)}
-.sdot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c0)}
-.sdot.live{background:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 22%,transparent)}
+.team::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--c0)}
+.team.live::before{background:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 22%,transparent)}
 .menu{position:static}
 .menu>summary{list-style:none;display:inline-flex;align-items:center;gap:8px;user-select:none}
 .menu>summary::-webkit-details-marker{display:none}
@@ -252,7 +252,7 @@ td select{width:auto;max-width:12em;height:30px;padding:2px 4px}
 .track .ph:last-child{border-radius:2px 5px 5px 2px}
 .track .ph i{position:absolute;left:0;top:0;bottom:0;background:var(--rail-done)}
 .track .win{position:absolute;top:-4px;bottom:-4px;border:1.5px solid var(--accent);border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);pointer-events:none}
-.track .now{position:absolute;top:-10px;bottom:-5px;width:2px;margin-left:-1px;background:var(--accent);border-radius:1px}
+.track::after{content:"";left:var(--now);position:absolute;top:-10px;bottom:-5px;width:2px;margin-left:-1px;background:var(--accent);border-radius:1px}
 .phases{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:.74rem;color:var(--muted);margin-top:6px}
 .phases i{font:normal 500 .72rem/1 var(--f-num)}
 .phases .cur{color:var(--ink);font-weight:600}
@@ -453,7 +453,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
     </div>
     <div class="src">
       <div class="seg sm mode" id="modeSeg" role="group" aria-label="Calculator mode"><button type="button" data-mode="14" aria-pressed="true">Mode 14</button></div>
-      <span class="status"><span class="dot" id="srcDot"></span><span id="srcText">Not filled yet: using preset numbers.</span></span>
+      <span class="status" id="srcState"><span id="srcText">Not filled yet: using preset numbers.</span></span>
       <span class="team" id="team" role="status" hidden></span>
       <button type="button" class="primary" id="openImport">Paste game data</button>
       <details class="menu" id="presetMenu">
@@ -535,7 +535,6 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="tip" id="tip" role="tooltip" hidden></div>
 <div class="sr" id="announce" aria-live="polite"></div>
 
 <script type="text/plain" id="reader">(async () => {
@@ -924,7 +923,7 @@ input[type=password]:focus{background:var(--panel);border-color:var(--focus);out
     if (shape !== (mini ? "mini" : "box")) {
       shape = mini ? "mini" : "box";
       root.innerHTML = CSS + (mini ? `<button class="pill" data-a="max"></button>` : `<div class="b"><div class="h"><b data-f="title"></b><button class="x" data-a="min" title="Minimise">–</button><button class="x" data-a="stop" title="Stop reading">×</button></div>
-      <p data-f="link"></p><p class="m" data-f="speed"></p><p class="m" data-f="info"></p><p class="w" data-f="stale"></p><p class="m" role="status" data-f="msg"></p>
+      <p data-f="link">…</p><p class="m" data-f="speed">…</p><p class="m" data-f="info">…</p><p class="w" data-f="stale">…</p><p class="m" role="status" data-f="msg">…</p>
       <div class="r"><button class="a p" data-a="copy">Copy data</button><button class="a" data-a="read">Read now</button><button class="a" data-a="setup">Update setup</button></div></div>`);
     }
     const put = (f, html) => { const el = root.querySelector(f); if (el && el.__h !== html) { el.__h = html; el.innerHTML = html; } };
@@ -2680,8 +2679,7 @@ const snapshot = () => { undoSnap = JSON.stringify(S); };
 let toastT;
 function toast(msg, undo = false){
   const t = $("toast");
-  t.innerHTML = `<span></span>${undo ? '<button type="button" id="toastUndo">Undo</button>' : ""}`;
-  t.firstChild.textContent = msg;
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button" id="toastUndo">Undo</button>' : ""}`;
   t.classList.add("show"); clearTimeout(toastT);
   toastT = setTimeout(() => t.classList.remove("show"), undo ? 6000 : 2600);
 }
@@ -2783,16 +2781,16 @@ function railHTML(R){
   const track = segs.map(s => { const len = s.b - s.a + 1, done = clamp(day - s.a, 0, len);
     return `<span class="ph" style="flex-grow:${len}" title="${s.ph}: day ${s.a}–${s.b}"><i style="width:${(done/len*100).toFixed(1)}%"></i></span>`; }).join("");
   const arrive = Math.min(max, day + R.lead), end = Math.min(max, Math.floor(day + R.cover));
-  const win = R.late || end <= day ? "" : `<span class="win" style="left:${x(arrive).toFixed(2)}%;width:${Math.max(0.8, x(end) - x(arrive) + 100/max).toFixed(2)}%;margin-left:${(-50/max).toFixed(2)}%" title="Stock cover: day ${arrive}–${end}"></span>`;
+  const win = R.late || end <= day ? "" : `<i class="win" style="left:${x(arrive).toFixed(2)}%;width:${Math.max(0.8, x(end) - x(arrive) + 100/max).toFixed(2)}%;margin-left:${(-50/max).toFixed(2)}%" title="Stock cover: day ${arrive}–${end}"></i>`;
   const tx = x(day), tcls = tx < 7 ? " l" : tx > 93 ? " r" : "";
-  const hols = R.hol.filter(h => h <= max).map(h => `<span class="hd${h <= day ? " past" : ""}" style="left:${x(h).toFixed(2)}%" title="Holiday: day ${h}"></span>`).join("");
+  const hols = R.hol.filter(h => h <= max).map(h => `<i class="hd${h <= day ? " past" : ""}" style="left:${x(h).toFixed(2)}%" title="Holiday: day ${h}"></i>`).join("");
   const next = R.hol.find(h => h > day && h <= max);
   const facts = [R.late ? `Vendor orders would arrive after day ${max}` : `Vendor orders arrive ~<b>day ${day + R.lead}</b>`,
     R.late ? "" : `stock covers to <b>day ${end}</b> (lead + ${R.st.cover} days)`,
     next ? `next holiday <b>day ${next}</b> (×${n(S.g.spike)} demand)` : ""].filter(Boolean);
   return `<div class="rail"><div role="img" aria-label="Day ${day} of ${max}, ${R.phase} phase${R.hol.length ? `, holidays on day ${R.hol.join(", ")}` : ""}.">
       <div class="lane"><span class="tl${tcls}" style="left:${tx.toFixed(2)}%">Day ${day}</span>${hols}</div>
-      <div class="track">${track}${win}<span class="now" style="left:${tx.toFixed(2)}%"></span></div>
+      <div class="track" style="--now:${tx.toFixed(2)}%">${track}${win}</div>
       <div class="phases">${segs.map(s => `<span${s.ph === R.phase ? ' class="cur"' : ""}>${s.ph} <i>${s.a === s.b ? s.a : `${s.a}–${s.b}`}</i></span>`).join("")}</div>
     </div><p class="facts">${facts.map(f => `<span>${f}</span>`).join("")}</p></div>`;
 }
@@ -3101,7 +3099,7 @@ function renderTop(){
   renderHeads();
   const game = S.preset === "game";
   const last = Math.max(n(S.liveAt), LV[MODE].at || 0), live = game && last > Date.now() - 120000;   // a live game tab sent data in the last 2 minutes (here or at a teammate's)
-  $("srcDot").className = "dot" + (game ? " ok" : "") + (live ? " live" : "");
+  $("srcState").classList.toggle("ok", game); $("srcState").classList.toggle("live", live);
   const t = S.pastedAt ? new Date(S.pastedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
   $("srcText").innerHTML = live ? `Live from your game: day <b>${f0(n(S.g.day))}</b>, updated ${clock(last)}.`
     : game ? `Filled from your game (day <b>${f0(n(S.g.day))}</b>${t ? `, ${t}` : ""}). ${n(S.liveAt) ? "The live link is quiet: is the game tab still open?" : "Paste again any time to refresh."}` : `Sample numbers until your game fills them (${S.preset === "juice" ? "juice" : "coffee"}). Cities and days come from the game.`;
@@ -3306,11 +3304,11 @@ async function whoName(id){
 async function renderShare(){
   const el = $("team"); if (!el) return;
   if (!Sync.on) { el.hidden = true; return; }
-  el.hidden = false;
-  if (!Sync.loaded) { el.innerHTML = '<span class="sdot"></span>Connecting to your team…'; return; }
-  if (!Sync.exists) { el.innerHTML = Sync.writable ? '<span class="sdot"></span>Not shared with your team yet <button type="button" class="small" id="shareNow">Share with team</button>' : '<span class="sdot"></span>Waiting for a teammate to share the numbers'; return; }
+  el.hidden = false; el.classList.toggle("live", Sync.loaded && Sync.exists);
+  if (!Sync.loaded) { el.innerHTML = 'Connecting to your team…'; return; }
+  if (!Sync.exists) { el.innerHTML = Sync.writable ? 'Not shared with your team yet <button type="button" class="small" id="shareNow">Share with team</button>' : 'Waiting for a teammate to share the numbers'; return; }
   const t = Sync.at ? new Date(Sync.at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
-  el.innerHTML = `<span class="sdot live"></span>Shared with your team${Sync.writable ? "" : " (view only)"}${Sync.by ? ' · updated by <b id="byName"></b>' : ""}${t ? ` at ${t}` : ""}`;
+  el.innerHTML = `Shared with your team${Sync.writable ? "" : " (view only)"}${Sync.by ? ' · updated by <b id="byName"></b>' : ""}${t ? ` at ${t}` : ""}`;
   if (Sync.by) { const nm = await whoName(Sync.by), b = $("byName"); if (b) b.textContent = nm === "You" ? "you" : nm; }
 }
 function shareLost(err){
@@ -3646,7 +3644,7 @@ document.addEventListener("keydown", e => {
     if (all[i + 1]) all[i + 1].focus(); else t.blur();
   }
 });
-const tip = $("tip");
+const tip = document.body.appendChild(Object.assign(document.createElement("div"), {className: "tip", hidden: true})); tip.setAttribute("role", "tooltip");
 function showTip(el, x, y){ tip.textContent = el.dataset.tip; tip.hidden = false; tip.style.left = clamp(x, 70, innerWidth - 70) + "px"; tip.style.top = y + "px"; }
 document.addEventListener("pointermove", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (el) showTip(el, e.clientX, e.clientY); else if (!tip.hidden) tip.hidden = true; });
 // a number field selects its value when you enter it, so typing replaces it. A click or tap puts the caret where it lands
