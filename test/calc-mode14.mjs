@@ -31,6 +31,11 @@ check("bids 0.40 under the last lowest rival bid", pick.price === 17.2, JSON.str
 const low = E.bidPick(M, {name: "Apple Juice", floorEach: 19}, {maxBid: 20}, R);
 check("never under the floor", low.price >= 19, low.price);
 
+// marketing: every open store gets 70% of the lowest store's sales (GBP/day); 6,000 or more stays at 4,000
+const mkOf = x => { const S = game(1e8); S.C.forEach(c => c.d = c.d.map(v => Math.round(v*x))); const R = E.plan(S, "balanced"); return {R, want: R.lowRev*0.7 >= 6000 ? 4000 : Math.floor(R.lowRev*0.7/100)*100}; };
+for (const x of [0.05, 1]) { const {R, want} = mkOf(x);
+  check(`marketing ${want === 4000 ? "stays at 4,000 once 70% of the lowest sales is 6,000+" : "is 70% of the lowest store's sales"}`, R.mkStores.length > 0 && R.mkStores.every(m => m.budget === want), `lowest ${Math.round(R.lowRev)}, stores ${R.mkStores.map(m => m.budget).join(",")}, want ${want}`); }
+
 // the page: only Mode 14, and 12i's B2B settings carried over once
 const b = await chromium.launch(process.env.CHROMIUM ? {executablePath: process.env.CHROMIUM} : {});
 const ctx = await b.newContext(), p = await ctx.newPage(), errs = [];

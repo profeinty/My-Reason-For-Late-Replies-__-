@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<!-- FF calculator v41 (web) -->
+<!-- FF calculator v42 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -1257,9 +1257,10 @@ function plan(S, sk, opt = {}){
     return {c, real: !!real, units: u, rev: u.reduce((s, q, j) => s + q*n(P[j].price), 0), margin: u.reduce((s, q, j) => s + q*Math.max(0, n(P[j].price) - estCost(j)), 0)};
   };
   const mkSplit = xs => {   // sets each store's x.want; returns the weakest store's sales, the friend amount and the total
-    const lowRev = xs.length ? Math.min(...xs.map(x => x.rev)) : 0, friendPer = lowRev/Math.max(1, n(g.mkDiv) || 3), mTot = xs.reduce((s, x) => s + x.margin, 0);
+    const lowRev = xs.length ? Math.min(...xs.map(x => x.rev)) : 0;
     let total = 0;
-    for (const x of xs) { x.want = (g.mkMode === "friend" ? friendPer : Math.min(x.margin*0.25, Math.max(friendPer*0.5, friendPer*xs.length*(mTot ? x.margin/mTot : 0))))*mkFactor; total += x.want; }
+    const friendPer = lowRev*0.7 >= 6000 ? 4000 : lowRev*0.7;   // the team's rule: 70% of the lowest store's sales, 4,000 once that reaches 6,000
+    for (const x of xs) { x.want = friendPer; total += x.want; }
     return {lowRev, friendPer, total};
   };
   // a set of new stores fits when its cash need plus `reserve` days of marketing for every store fits the budget
@@ -1970,7 +1971,7 @@ function stepsOf(S, X){
     for (const [ag, v] of parts) { const was = mkSet[`${x.c.name}|${ag}`];
       if (v > 0 ? was !== v : n(was) > 0) add({tick: `mkt:${x.c.name}:${ag}`, op: "setMarketing", section: "marketing", must: was != null && v < n(was), target: {city: x.c.name, store: `${x.c.name} Retail`}, agency: ag, qty: v,
         action: v > 0 ? `Marketing for ${x.c.name}: ${f0(v)}/day with ${ag}.` : `Stop ${ag} marketing in ${x.c.name} (set 0).`, budget: v, perDay: true, budgetKey: "mkt",
-        why: `${g.mkMode === "friend" ? "Friend's rule" : "FF best"}: ${f0(x.budget)}/day for the store, weighted by its profit${has.media ? ", split by who the city's people listen to" : ""}${R.mkFactor < 1 ? `, ×${R.mkFactor} for ${R.phase}` : ""}.`}); }
+        why: `70% of the lowest store's sales (4,000 once that reaches 6,000): ${f0(x.budget)}/day${has.media ? ", split by who the city's people listen to" : ""}.`}); }
   }
   const BM = has.b2b && !rescue && offers.some(o => o.kind === "bid") ? bidModel(S, day) : null;
   if (has.b2b && !rescue && offers.length) for (const b of b2bProducts) {
@@ -2692,7 +2693,7 @@ const COUNTS = {
   prod: () => `${S.P.length}`,
   cities: () => `${S.C.filter(c => c.open).length} open of ${S.C.length}`,
   mach: () => S.M.length ? `${S.own.length} owned · ${S.M.length} types` : "not allowed",
-  mkt: () => S.g.mkMode === "friend" ? "friend's" : "FF best",
+  mkt: () => "70% rule",
   costs: () => `${fk(n(S.g.salary))} staff / store`
 };
 const BODY = {
@@ -2746,9 +2747,9 @@ const BODY = {
     ${S.R.length ? `<div class="tw"><table><thead><tr><th>Raw material</th><th class="n">Cost</th><th class="n">Warehouse</th><th class="n">m² / unit</th></tr></thead><tbody>
     ${S.R.map((r, i) => `<tr><td>${esc(r.name)}</td><td>${numCell(`R.${i}.cost`, `${r.name} cost`)}</td><td>${numCell(`R.${i}.wh`, `${r.name} stock`)}</td><td>${numCell(`R.${i}.dim`, `${r.name} m² per unit`, "", "0.005")}</td></tr>`).join("")}</tbody></table></div>
     <p class="hint">m² / unit is read from the game; blank counts as 0.005 for the warehouse space.</p>` : ""}`,
-  mkt: () => `<div class="grid">${selFld("g.mkMode", "Formula", [["best", "FF best (weighted)"], ["friend", `Friend's: lowest ÷ ${f0(n(S.g.mkDiv) || 3)}`]])}${fld("g.mkDiv", "Divide lowest sales by")}
+  mkt: () => `<div class="grid">
     ${["mSen", "mAdu", "mJun"].map((k, i) => selFld("g." + k, `${["Seniors", "Adults", "Juniors"][i]} respond to`, [["", "Not known yet"], ["Media A", "Media A"], ["Media B", "Media B"], ["Media C", "Media C"]])).join("")}</div>
-    <p class="hint">Lowest sales = the weakest store's normal daily sales, read from the game (Cities → Sold / day); a store with none yet uses forecast × % we sell. Friend's rule gives every store that ÷ 3. FF best keeps the same total but gives bigger stores more (at least ½, at most 25% of the store's profit). Media split follows each city's population for the groups you've set; the others are split evenly.</p>`,
+    <p class="hint">Lowest sales = the weakest store's normal daily sales, read from the game (Cities → Sold / day); a store with none yet uses forecast × % we sell. Every store gets 70% of it in GBP a day, or 4,000 once that reaches 6,000. Media split follows each city's population for the groups you've set; the others are split evenly.</p>`,
   costs: () => `<div class="grid">${fld("g.salary", "Staff / store / day")}${fld("g.hire", "Hiring / new store")}${fld("g.report", "Report fee / day")}${fld("g.whRent", "Warehouse rent / m²")}${fld("g.whM2", "Warehouse m² rented")}${fld("g.whStep", "Warehouse m² step")}</div>`
 };
 const SECS = [["today", "Today and game rules", true], ["b2b", "B2B vs retail weighting", false], ["safe", "Cash safety and bot", false], ["prod", "Products", true], ["cities", "Cities", true], ["mach", "Production", null], ["mkt", "Marketing formula", false], ["costs", "Fixed costs", false]];
@@ -2978,7 +2979,7 @@ function renderPlan(){
   const mktCard = !has.mkt ? "" : card("mkt", "MKT", "Marketing", `${fk(R.mkTotal)} / day`, R.mkStores.length && R.mkTotal > 0
     ? `<div class="tw"><table class="pt"><thead><tr><th class="tk"><span class="sr">Done</span></th><th>Store</th><th class="n">Sales / day</th><th class="n">Budget</th>${has.media ? '<th class="n">Media A</th><th class="n">Media B</th><th class="n">Media C</th>' : ""}</tr></thead><tbody>
       ${R.mkStores.map(x => `${tr(`mkt:${x.c.name}`, `marketing for ${x.c.name}`)}<td>${esc(x.c.name)}</td><td class="n"${x.real ? "" : ' title="No sales read yet: forecast × % we sell"'}>${fk(x.rev)}${x.real ? "" : "*"}</td><td class="n"><b>${f0(x.budget)}</b></td>${has.media ? `<td class="n">${f0(x.media["Media A"])}</td><td class="n">${f0(x.media["Media B"])}</td><td class="n">${f0(x.media["Media C"])}</td>` : ""}</tr>`).join("")}</tbody></table></div>
-      <p class="hint">${g.mkMode === "friend" ? "Friend's rule" : "FF best"}: weakest store sells ~${fk(R.lowRev)}/day ÷ ${f0(n(g.mkDiv) || 3)} = ${fk(R.friendPer)} per store${g.mkMode === "friend" ? "" : ", re-weighted by each store's profit"}${R.mkFactor < 1 ? `, ×${R.mkFactor} for ${R.phase}` : ""}. ${mkSrc} After 2 days: ROI = extra units × margin ÷ spend. Raise 20% above 1.5, cut 50% under 1.</p>`
+      <p class="hint">Weakest store sells ~${fk(R.lowRev)}/day, so each store gets ${fk(R.friendPer)}${R.lowRev*0.7 >= 6000 ? " (capped at 4,000)" : " (70%)"}. ${mkSrc} After 2 days: ROI = extra units × margin ÷ spend. Raise 20% above 1.5, cut 50% under 1.</p>`
     : `<p class="hint">${R.mkFactor === 0 ? `No marketing now (${R.emerg ? "emergency" : "closing phase"}).` : "Open stores first."}</p>`);
 
   // prices
@@ -3002,7 +3003,7 @@ function renderPlan(){
     ["mach", "Machines to buy", f0(okM.length), machMix || "none pay back", okM.length > 0, has.prod],
     ["b2b", "B2B fund", fk(R.b2bFund), `${pct(b2bPct)} of investable`, R.b2bFund > 0, has.b2b],
     ["retail", "Retail stock", fk(R.spent.stock), "vendor orders today", R.spent.stock > 0, true],
-    ["mkt", "Marketing / day", fk(R.mkTotal), g.mkMode === "friend" ? "friend's rule" : "FF best", R.mkTotal > 0, has.mkt],
+    ["mkt", "Marketing / day", fk(R.mkTotal), "70% rule", R.mkTotal > 0, has.mkt],
     ["low", "Lowest cash", fk(T.low.net), `day ${f0(T.low.day)} · floor ${fk(T.low.floor)}`, T.low.head >= -0.5, true]].filter(x => x[5]);
   const summary = `${R.opened.length ? `Open <b>${R.opened.map(x => esc(x.c.name)).join(", ")}</b>. ` : ""}${okM.length ? `Buy <b>${machMix}</b> (${esc(MPRIO[g.mPrio] || "")}). ` : ""}${has.b2b ? `Forecasts say <b>${R.focus === "B2B" ? "focus B2B" : R.focus === "Retail" ? "focus retail" : "split retail and B2B"}</b>: B2B is ~${pct(R.wB2B)} of the profit potential, so it gets ${pct(b2bPct)} of the ${fk(R.investable)} investable cash${b2bCut ? ` (less than its usual ${pct(R.fundShare)}, so every store keeps its first ${R.lead + 2} days of stock)` : ""}.` : R.opened.length || okM.length ? "" : "No new stores or machines today: stock the open stores as below."}`.trim();
   const parts = [["Stores", R.spent.stores, "c1", true], ["Machines", R.spent.mach, "c2", has.prod], ["Raw materials", R.rawCost, "c3", has.prod], ["B2B fund", R.b2bFund, "c4", has.b2b], ["Retail stock", R.spent.stock, "c5", true], ["Left", Math.max(0, R.cashLeft), "c0", true]].filter(x => x[3]);

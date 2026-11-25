@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.3", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.4", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -1486,7 +1486,47 @@
     const hit = f.fields.map(x => x[0]).filter(k => /^invest\d+$/i.test(k) && nm(name) && norm(f.labels[k] || "").includes(nm(name)));
     return hit.length === 1 ? hit[0].replace(/^invest/i, "") : null;
   };
+  const mktWiz = async (run, list, url) => {   // Mode 14: Media A/B/C card, then every store's GBP/day on one screen, then confirm
+    const h1 = await get(url), cards = [...dom(h1).querySelectorAll("[data-action^='marketing']")].map(el => ({act: el.getAttribute("data-action"), text: tx(el)}));
+    const agOf = name => { const k = String(name || "").trim(), m = k.match(/^M([A-Z])$/i), t = (m ? "Media " + m[1] : k).toLowerCase(), hit = cards.filter(c => c.text.toLowerCase() === t);
+      return hit.length === 1 ? hit[0] : m && cards.length === 3 ? cards["ABC".indexOf(m[1].toUpperCase())] || null : null; };
+    const by = new Map();
+    for (const s of list) {
+      const parts = s.media && typeof s.media === "object" && Object.keys(s.media).length ? Object.entries(s.media) : [[s.agency || "", s.act === "pause" ? 0 : s.price ?? s.qty]], got = [];
+      for (const [name, v] of parts) { const c = agOf(name); if (!c) { mark(s, "failed", `no single media “${name}” on the marketing screen`); break; } got.push([c, Math.round(+v)]); }
+      if (s.state === "failed") { oops(run); continue; }
+      if (got.some(([, v]) => !(v >= 0))) { mark(s, "failed", "the plan has no GBP/day for it"); oops(run); continue; }
+      const cost = s.cost > 0 ? s.cost : got.reduce((t, [, v]) => t + v, 0), why = refuse(run, s, cost, list.filter(x => x !== s && x.queued).reduce((t, x) => t + x.cost, 0));
+      if (why) { mark(s, "skipped", why); continue; }
+      s.queued = true; s.cost = cost; s.parts = got.length; s.okParts = 0; s.amount = cost; s.qtyDone = cost; s.priceDone = cost;
+      for (const [c, v] of got) by.set(c, [...(by.get(c) || []), {s, val: v}]);
+    }
+    const boxes = h => {   // every store's box sits in one block, each after its "<store> Retail (GBP)" label
+      const d = dom(h); d.querySelectorAll("script,style").forEach(e => e.remove());
+      const ins = [...d.querySelectorAll("input[name^='invest']")], seg = tx(d.body).split(/\(\s*[A-Z]{3}\s*\)/).slice(0, -1);
+      return ins.map((e, i) => ({k: e.name, v: e.value, t: seg.length === ins.length ? seg[i] : ""}));
+    };
+    for (const [c, xs] of by) {
+      if (!live(run.day)) return;
+      for (const x of xs) clock(run, x.s);
+      if (BOT.dry) { for (const x of xs) if (++x.s.okParts === x.s.parts) { spend(run, x.s, x.s.cost); mark(x.s, "done", `${n(x.s.cost)}/day, practice, not sent`); } continue; }
+      const a = await wizSend(formOf(h1), {nextAction: c.act}); if (typeof a !== "string") { xs.forEach(x => mark(x.s, "skipped", a ? a.err : "the bot was stopped", !!a)); continue; }
+      const bx = boxes(a), set = {nextAction: "MarketingExecute"};
+      for (const x of xs) { const hit = bx.filter(y => nm(x.s.where) && nm(y.t).endsWith(nm(x.s.where))), b = hit.length === 1 ? hit[0] : null; if (!b) { mark(x.s, "failed", `no marketing box for ${x.s.where} on the ${c.text} screen`); oops(run); continue; } x.k = b.k; set[b.k] = String(x.val); }
+      const r = await wizSend(formOf(a), set), e = typeof r === "string" && errIn(r, a);
+      if (typeof r !== "string" || e) { xs.forEach(x => { if (x.s.state === "failed") return; x.s.unsure = typeof r !== "string" && !!r && !!r.unsure; mark(x.s, "failed", e ? `the game said “${e}”` : r ? r.err : "the bot was stopped"); }); oops(run); continue; }
+      const g = await wizSend(formOf(await get(url)), {nextAction: c.act}), now = typeof g === "string" ? boxes(g) : null;   // read back what the game holds now
+      for (const x of xs) { if (!x.k || x.s.state === "failed") continue; const b = now && now.find(y => y.k === x.k);
+        if (b && toNum(b.v) !== x.val) { mark(x.s, "failed", `${c.text} shows ${b.v} for ${x.s.where} after the change, not ${x.val}`); oops(run); continue; }
+        if (++x.s.okParts === x.s.parts) { spend(run, x.s, x.s.cost); mark(x.s, "done", `${n(x.s.cost)}/day${b ? ", the game shows it" : ""}`); } }
+    }
+    run.sec.marketing = BOT.dry ? "practice" : "checked on the marketing screen";
+  };
   const mktRun = async (run, list) => {
+    if (!$id("MENU2_retail_media") && $id("MENU2_MODE_TRANSACTION_MKT")) {   // Mode 14
+      const w = linksIn(dom(await pageAt("MENU2_MODE_TRANSACTION_MKT")), u => /cmd=marketingInvest/i.test(u) && !/VIEW_MKTRPT/i.test(u))[0];
+      if (w) return mktWiz(run, list, w.url);
+    }
     const ags = blocks(await pageAt("MENU2_retail_media"), u => /cmd=INVEST_MKT/i.test(u), u => u), by = new Map();
     const agOf = name => {
       const k = String(name || "").toLowerCase(); if (!k) return ags.length === 1 ? ags[0] : null;
@@ -1906,6 +1946,11 @@
         return `${vs.length} vendor${vs.length > 1 ? "s" : ""}, ${ps.length} products, ${f.opts[dk].filter(o => o.v !== "").length} destinations (${f.opts[dk].filter(o => o.v !== "").map(o => placeOf(o.t).replace(/\s+(retail|warehouse)$/i, "")).join(", ")}), sizes ${n(Math.min(...sizes))} to ${n(Math.max(...sizes))}`;
       });
       await tryRow("Marketing", async () => {
+        if (!$id("MENU2_retail_media") && $id("MENU2_MODE_TRANSACTION_MKT")) {   // Mode 14: the marketing wizard
+          const w = linksIn(dom(await pageAt("MENU2_MODE_TRANSACTION_MKT", true)), u => /cmd=marketingInvest/i.test(u) && !/VIEW_MKTRPT/i.test(u))[0]; if (!w) throw new Error("no Invest in Retail Market link");
+          const cs = [...dom(await get(w.url)).querySelectorAll("[data-action^='marketing']")].map(tx); if (!cs.length) throw new Error("no media on the marketing screen");
+          return `${cs.join(", ")} (Mode 14 marketing screen)`;
+        }
         const ags = blocks(await pageAt("MENU2_retail_media", true), u => /cmd=INVEST_MKT/i.test(u), u => u); if (!ags.length) throw new Error("no Set Marketing Expense link");
         const boxes = (await formAt(ags[0].url, true)).f.fields.map(x => x[0]).filter(k => /^invest\d+$/i.test(k));
         if (!boxes.length) throw new Error("no store boxes on the marketing form");

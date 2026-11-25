@@ -22,7 +22,7 @@ const reset = (o = {}) => {
     shops: {11: {name: "Berlin", rate: 52, area: 250, id: 501}, 13: {name: "Hamburg", rate: 48, area: 0}, 17: {name: "Cologne", rate: 45, area: 100, id: 502}},
     whs: {26: {name: "Dusseldorf", rate: 5, area: 1000, id: 601}, 27: {name: "Cologne", rate: 5, area: 0}},
     stock: {11: {P1: 2000, P2: 1000, P3: 500}, 13: {P1: 0, P2: 0, P3: 0}, 17: {P1: 100, P2: 100, P3: 100}}, wstock: {26: {}},
-    mkt: {MA: {11: 5000, 13: 0, 17: 2000}, MB: {11: 0, 13: 0, 17: 0}}, offers: {12: "open", 13: "open", 14: "open"}, fail: o.fail || "",
+    mkt: {MA: {11: 5000, 13: 0, 17: 2000}, MB: {11: 0, 13: 0, 17: 0}, MC: {11: 0, 13: 0, 17: 0}}, offers: {12: "open", 13: "open", 14: "open"}, fail: o.fail || "",
     machines: [], prdline: "", posts: [], pos: [], draft: null, allocErr: [], nextBatch: 9000,
     web: [{id: 151, product: "P1", price: 9, qty: 500, days: 2, seller: "TGED"}, {id: 152, product: "P2", price: 12.5, qty: 300, days: 3, seller: "Bolo"},
       {id: 122, product: "P3", price: 99999999.99, qty: 500, days: 5, seller: "TGED"}, {id: 153, product: "P3", price: 15, qty: 200, days: 2, seller: "Neo"}],
@@ -161,6 +161,17 @@ const wizAct = (q, b) => {
     S.cash -= cost; txAdd(loc, "PO", `Finished Goods Purchase Seller : VFG${S.wiz.vc} ${Object.entries(qs).map(([k, v]) => `${NAMES[k]} ${v} Pack @${pr[k]} EUR`).join(" ")} Terms of Payment : Cash For : ${PLACE[dest]}`).status = "PO Issued"; S.wiz = null; return "<div>Submitted</div>"; }
   return "<div>Error: unknown step</div>";
 };
+// Mode 14 marketing: Marketing Investment (a list) links a wizard: pick Media A/B/C, then GBP/day for every store at once, then confirm
+const MKTLINKS = `<a href="ms_sure_wizard?cmd=marketingInvest&locType=&tpe=FG">+ Invest in Retail Market</a> <a href="ms_sure_wizard?cmd=marketingInvest&mktType=VIEW_MKTRPT">+ Subscribe Marketing Report</a>`;
+const MKFORM = (inner, cards) => wizForm("", inner, cards).replace(/action="[^"]*"/, 'action="ms_sure_wizard?submit=1&step=&cmd=marketingInvest&locType=&tpe=FG"');
+const mkStep1 = () => MKFORM("<p>Invest in Retail Marketing</p>", ["A", "B", "C"].map((m, i) => [`marketing${i + 1}`, `Media ${m}`]));
+const mkStep2 = ag => MKFORM(`<div>Invest Marketing By Media ${ag.slice(1)}</div><div>${Object.entries(S.mkt[ag]).map(([ac, v]) => `${PLACE[ac]} (GBP) <script>function number_format_invest${ac}(num){ return num; }</script><input type="hidden" name="invest${ac}" id="invest${ac}_clean" value="${v}"><button type="button">−</button><input type="text" id="invest${ac}_display" value="${v}"><button type="button">+</button>`).join("")}</div>`, [["MarketingExecute", "Confirm Issue PO"], ["DECIDE", "Back to Start"]]);
+const mkAct = b => { const a = b.get("nextAction") || "";
+  if (/^marketing[1-3]$/.test(a)) { S.mkWiz = "M" + "ABC"[+a.slice(9) - 1]; return mkStep2(S.mkWiz); }
+  if (a === "MarketingExecute" && S.mkWiz) { const ag = S.mkWiz; S.mkWiz = null;
+    for (const [k, v] of b) if (/^invest\d+$/.test(k)) { if (!(+v >= 0) || +v > 18000) return "<div>Error: invalid amount</div>"; S.mkt[ag][k.slice(6)] = +v; }
+    txAdd("MKT", "TX", `Marketing Expense Media ${ag.slice(1)}`).status = "Approved"; return "<div>Submitted</div>"; }
+  return "<div>Error: unknown step</div>"; };
 const MENU = {
   retail_location: () => space(S.shops, "Retail"), whs_location: () => space(S.whs, "Warehouse"),
   retail_vendor: () => S.m14 ? WIZLINK("RTL") : `<div class="vendor-box"><div>VFG1 Vendor 1</div><div>Americano 10 EUR Hot Chocolate 13 EUR Bubble Milk Tea 16 EUR Lead time 1 day</div><a href="ms_sure_learner?cmd=BUY_FG&loctype=RTL&vc=1">Procure Finished Goods</a></div>
@@ -282,7 +293,7 @@ http.createServer((req, res) => {
     const send = (t, type = "text/html; charset=utf-8") => { res.writeHead(200, {"Content-Type": type, "Cache-Control": "no-store"}); res.end(t); };
     if (/PRC|PRICE/i.test([...q.getAll("cmd"), ...new URLSearchParams(body).getAll("cmd")].join(" "))) log.push({t: Date.now(), m: "PRICE", q: u.search});   // must never happen
     if (u.pathname === "/reader.js") return send(fs.readFileSync(READER, "utf8"), "text/javascript; charset=utf-8");
-    if (u.pathname === "/game.html") return send(GAME);
+    if (u.pathname === "/game.html") return send(S.m14 ? GAME.replace(/<a id="MENU2_retail_media"[^>]*>Media<\/a>/, "") : GAME);   // Mode 14 has no Media menu
     if (u.pathname === "/dash") return send(dash());
     if (u.pathname === "/calc/") return send(REAL_CALC ? fs.readFileSync(process.env.CALC_FILE || new URL("../calc/index.html", import.meta.url), "utf8")   // /reset?calc=real: the real calculator (CALC_FILE: another copy of it)
       : fs.readFileSync(new URL("./calc-stub.html", import.meta.url), "utf8").replace("<head>", `<head><script>window.STUB = ${JSON.stringify({old: STUB === "old", locked: STUB === "locked"})}</script>`));
@@ -294,12 +305,13 @@ http.createServer((req, res) => {
       const now = Date.now(), early = now - lastList < LIST_MS || S.slow > 0; lastList = now;
       if (early) { if (S.slow > 0) S.slow--; log.push({t: now, m: "SLOW", x: "list:" + q.get("tpe")}); return send(SLOWDOWN); }
       log.push({t: now, m: "GET", x: "list:" + q.get("tpe"), q: u.search}); const from = +q.get("latestPage") || 0, tpe = q.get("tpe");
-      return send(page(TXMENUS.includes(tpe) ? txPage(tpe, from, from + 5) : tpe === "B2B_IN" ? MENU.b2b() : soPage(from, from + 5))); }
+      return send(page(TXMENUS.includes(tpe) ? (S.m14 && tpe === "MKT" ? MKTLINKS : "") + txPage(tpe, from, from + 5) : tpe === "B2B_IN" ? MENU.b2b() : soPage(from, from + 5))); }
     if (u.pathname === "/ajax.php") { const b = new URLSearchParams(body), r = req.method === "POST" && q.get("cmd") === "ACTION_ON_ROW" ? onRow(b) : "Error: unknown";
       log.push({t: Date.now(), m: "AJAX", cmd: q.get("cmd"), body, r, xhr: req.headers["x-requested-with"] || ""}); return send(r); }
     if (u.pathname === "/ms_sure_wizard") {
-      if (req.method !== "POST") { log.push({t: Date.now(), m: "GET", cmd: "WIZ", q: u.search}); return send(page(wizStep1(q.get("locType")))); }
-      const b = new URLSearchParams(body), r = wizAct(q, b); log.push({t: Date.now(), m: "WIZ", act: b.get("nextAction"), q: u.search, body}); return send(page(r)); }
+      const mk = q.get("cmd") === "marketingInvest";
+      if (req.method !== "POST") { log.push({t: Date.now(), m: "GET", cmd: "WIZ", q: u.search}); return send(page(mk ? mkStep1() : wizStep1(q.get("locType")))); }
+      const b = new URLSearchParams(body), r = mk ? mkAct(b) : wizAct(q, b); log.push({t: Date.now(), m: "WIZ", act: b.get("nextAction"), q: u.search, body}); return send(page(r)); }
     if (u.pathname === "/ms_sure_learner") {
       const cmd = q.get("cmd");
       if (req.method === "POST") { const b = new URLSearchParams(body), r = act(q, b); log.push({t: Date.now(), m: "POST", cmd, q: u.search, body, r});

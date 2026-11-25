@@ -172,7 +172,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v13\.3/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v13\.4/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -643,6 +643,20 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   await click(p, '[data-bot="dry"]'); await click(p, '[data-bot="go"]'); await runDone(p);
   const L = await server();
   check("M14b practice: no order and no discount request sent", !L.log.some(x => x.m === "WIZ" || x.m === "POST") && (await steps(p)).every(s => s.st === "done"), L.log.filter(x => x.m === "WIZ" || x.m === "POST").map(x => x.act || x.cmd).join(","));
+  await ctx.close();
+}
+{   // M14c: Mode 14 has no Media screen: marketing goes through its wizard (Media A/B/C, every store's GBP/day, confirm)
+  const plan = {...only(() => false), planId: "test-m14m", budgets: {...PLAN.budgets, marketing: 20000}};
+  plan.steps = [{id: "d5:mkt:Berlin:MA", seq: 1, section: "marketing", action: "set", target: "Berlin", price: 3000, agency: "MA", cost: 3000},
+    {id: "d5:mkt:Cologne:MC", seq: 2, section: "marketing", action: "set", target: "Cologne", price: 600, agency: "MC", cost: 600}];
+  const {ctx, p, errs} = await open("", MEM, "&m14=1&cash=2000000");
+  await p.evaluate(pl => window.__ff.plan(pl), plan); await click(p, '[data-bot="go"]'); await runDone(p);
+  const S = await steps(p), L = await server(), W = L.log.filter(x => x.m === "WIZ");
+  for (const s of S) console.log("  ", s.sec, s.t, "=>", s.st, "|", s.why);
+  check("M14c both marketing steps done", S.length === 2 && S.every(s => s.st === "done"), S.map(s => s.st + " " + s.why).join(" | "));
+  check("M14c Berlin 3,000 with Media A, Cologne 600 with Media C, the rest kept", L.S.mkt.MA[11] === 3000 && L.S.mkt.MC[17] === 600 && L.S.mkt.MA[17] === 2000 && L.S.mkt.MA[13] === 0, JSON.stringify(L.S.mkt));
+  check("M14c one confirm per media", W.filter(x => x.act === "MarketingExecute").length === 2, W.map(x => x.act).join(","));
+  check("M14c no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 await b.close();
