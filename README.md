@@ -58,4 +58,4 @@ Safety: it never changes a selling price (the reader refuses the game's price co
 If you use without permission and still complain(like shitty ui,etc.) just see what gaeto can do, only complain necessary bugs and give advice that's useful not ui fixing or some shi.
 
 ## 📄 License
-MIT © Profeinty
+MIT © Profeinty.
