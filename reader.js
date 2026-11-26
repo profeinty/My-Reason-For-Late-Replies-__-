@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.4", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.5", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -52,6 +52,7 @@
     if (/SPACE_CANCEL/i.test(url)) throw new Error("refused: that link cancels a rental");
     const cs = cmds(url, body), acts = cmds(url, body, "action");
     if (cs.some(c => LOCKED.test(c))) throw new Error("refused: selling prices are locked");
+    if (cs.some(c => /TOBUY/i.test(c))) throw new Error("refused: the team never buys on the Web Market");
     if (cs.some(c => /CANCEL/i.test(c)) || acts.some(a => /cancel/i.test(a))) throw new Error("refused: the bot never cancels anything");
     if (cs.some(c => ONROW.test(c)) && (body == null || !acts.length || acts.some(a => a !== "approve"))) throw new Error("refused: on a Transactions row the bot only approves");
     if (body != null && new URL(url, location.href).origin !== location.origin) throw new Error("refused: not this game's address");
@@ -714,8 +715,13 @@
   const WEB = {rows: [], post: null, at: 0};
   const webRow = r => {
     const t = tx(r), g = (re, f = x => x) => { const m = t.match(re); return m ? f(m[1]) : null; }, a = linksIn(r, u => /ms_sure_learner\?/i.test(u))[0];
-    return {id: g(/\bID\s*:?\s*(\d+)/) || r.id.slice(3), kind: tx(r.querySelector("h6")), product: tx(r.querySelector("ol li b")).replace(/\s*Price\s*:.*$/i, "") || g(/\bID\s*:?\s*\d+\s*(.+?)\s+Price\s*:/i), price: g(/Price\s*:\s*([\d,.]+)/i, toNum),
-      qty: g(/Quantity\s*:\s*([\d,]+)/i, toNum), days: g(/Shipment\s*:\s*(\d+)/i, Number), seller: g(/Seller\s*:\s*(.+?)(?:\s*Rating\s*:|\s*We buy\b|$)/i), url: a ? a.url : null, cmd: a ? arg(a.url, "cmd") : null};
+    const dl = {}, num1 = s => s == null ? null : toNum((String(s).match(/[\d,]+(?:\.\d+)?/) || [])[0]);   // Mode 14 cards: dt/dd pairs
+    r.querySelectorAll("dt").forEach(dt => { if (dt.nextElementSibling) dl[tx(dt).toLowerCase()] = tx(dt.nextElementSibling); });
+    return {id: String(num1(tx(r.querySelector(".ms-ecm-id"))) ?? (g(/\bID\s*:?\s*(\d+)/) || r.id.slice(3))), kind: tx(r.querySelector(".ms-ecm-type, h6")),
+      product: tx(r.querySelector(".ms-ecm-product")) || tx(r.querySelector("ol li b")).replace(/\s*Price\s*:.*$/i, "") || g(/\bID\s*:?\s*\d+\s*(.+?)\s+Price\s*:/i),
+      price: dl.price != null ? num1(dl.price) : g(/Price\s*:\s*([\d,.]+)/i, toNum), qty: dl.quantity != null ? num1(dl.quantity) : g(/Quantity\s*:\s*([\d,]+)/i, toNum),
+      days: dl.delivery != null ? num1(dl.delivery) : g(/Shipment\s*:\s*(\d+)/i, Number), seller: dl.seller || dl.buyer || g(/(?:Seller|Buyer)\s*:\s*(.+?)(?:\s*Rating\s*:|\s*We (?:buy|sell)\b|$)/i), url: a ? a.url : null, cmd: a ? arg(a.url, "cmd") : null,
+      sellUrl: (linksIn(r, u => /ms_sure_learner\?/i.test(u) && !/TOBUY/i.test(u)).find(x => /we sell/i.test(tx(x.el))) || {}).url || null};
   };
   const orderRows = h => listRows(dom(h)).map(r => { const t = tx(r), a = linksIn(r, u => /cmd=B2BECM_SOS_ALLOC/i.test(u))[0];
     return {id: r.id.slice(3), text: t.slice(0, 240), product: (t.match(/Product\s*:\s*(.+?)\s+([\d,]+)/i) || [])[1] || null, qty: toNum((t.match(/Product\s*:\s*.+?\s+([\d,]+)/i) || [])[1]),
@@ -733,7 +739,7 @@
     ["buy_store", "Store stock"], ["buy_raw", "Raw materials"], ["buy_wh_goods", "Stock for B2B"], ["ecom", "E-commerce"], ["price", "Prices"], ["marketing", "Marketing"], ["other", "Not known"]];
   const secName = k => (SECTIONS.find(x => x[0] === k) || [k, k])[1];
   const ACTS = {b2b: ["accept", "bid", "ship"], rent_shop: ["rent", "release"], rent_wh: ["rent", "release"], buy_store: ["buy"], buy_raw: ["buy"], buy_wh_goods: ["buy"],
-    marketing: ["set", "pause"], machine: ["buy", "priority"], ecom: ["buy", "sell"], price: null};
+    marketing: ["set", "pause"], machine: ["buy", "priority"], ecom: ["buy", "sell", "sellto"], price: null};
   const BOT = {on: false, busy: false, prepping: false, cut: false, loop: null, say: "", note: "", warn: "", plans: {}, run: null, days: {},
     pages: {}, forms: {}, expect: [], fails: 0, prepDay: 0, startAt: 0, dry: false, checking: false, check: [], checkAt: 0, askAt: 0};
   const dayKey = d => BOT.dry ? "p" + d : d;
@@ -1197,37 +1203,36 @@
       clock(run, s);
       await pre(run, s, async () => {
         if (s.act === "sell") return ecomSell(run, s);
+        if (s.act !== "sellto") { mark(s, "skipped", "the team never buys on the Web Market"); return; }
         rows = rows || await readWeb(false);
-        rows = await ecomBuy(run, s, rows);
+        rows = await ecomSellTo(run, s, rows);
       });
     }
   };
-  const ecomBuy = async (run, s, rows) => {
-    const L = rows.find(x => String(x.id) === s.offer), cap = s.unitPriceMax ?? s.price ?? s.unitPrice, lo = s.qtyMin ?? 1, hi = s.qtyMax ?? s.qty;
-    const no = !s.offer ? "the plan gives no listing number" : !L ? `listing ${s.offer} isn't on the Web Market now` : !L.url || !/TOBUY/i.test(L.cmd || "") ? `listing ${s.offer} has no We buy link`
+  const ecomSellTo = async (run, s, rows) => {   // We sell on a buyer's (red) listing, from the warehouse stock won B2B orders don't need
+    const L = rows.find(x => String(x.id) === s.offer), floor = s.priceMin ?? s.price, X = dash();
+    const stock = X.cash != null && s.product ? whStock(s.product, X.warehouses || []) : null, have = stock == null ? null : Math.max(0, stock - owedOf(s.product));
+    const no = !s.offer ? "the plan gives no listing number" : !L ? `listing ${s.offer} isn't on the Web Market now` : !L.sellUrl ? `listing ${s.offer} has no We sell button`
       : s.product && !prodIs(L.product, s.product) ? `listing ${s.offer} is ${L.product}, the plan says ${s.product}` : L.qty == null || L.price == null ? `can't read listing ${s.offer}'s amount or price`
-      : hi == null ? "the plan gives no amount" : L.qty !== s.qty && !(L.qty >= lo && L.qty <= hi) ? `listing ${s.offer} has ${n(L.qty)}, the plan says ${n(s.qty ?? hi)}`
-      : cap == null ? "the plan gives no price for it" : L.price > cap + 1e-9 ? `listing ${s.offer} asks ${L.price} a unit, the plan allows up to ${cap}` : "";
+      : floor == null ? "the plan gives no lowest price" : L.price < floor - 1e-9 ? `listing ${s.offer} pays ${L.price} a unit, the plan's lowest is ${floor}`
+      : have == null ? "can't read today's warehouse stock (the dashboard isn't on screen)" : have < L.qty ? `only ${n(have)} ${s.product} free in the warehouses for ${n(L.qty)}` : "";
     if (no) { mark(s, "skipped", no); return rows; }
-    const cost = Math.round(L.price*L.qty*100)/100, why = refuse(run, s, cost); if (why) { mark(s, "skipped", why); return rows; }
-    const F = await formAt(L.url, true), f = F.f, dk = destOf(f) || lcKey(f), prc = num(arg(f.action, "prc"));
-    if (!/TOBUY/i.test(cmdOf(f)) || !new RegExp(`[?&]id=${reEsc(L.id)}(&|$)`).test(f.action)) { mark(s, "failed", "an unexpected screen came up after We buy, so nothing was sent"); oops(run); return rows; }
-    if (prc != null && Math.abs(prc - L.price) > 0.005) { mark(s, "skipped", `listing ${L.id}'s price is now ${prc}`); return rows; }
-    const dest = dk && destPick(f.opts[dk] || [], s.where || "warehouse");
-    if (!dest) { mark(s, "failed", `no single “${s.where || "warehouse"}” among the buy form's destinations`); oops(run); return rows; }
-    Object.assign(s, {qtyDone: L.qty, priceDone: L.price, amount: cost, orderId: L.id});
-    let res = await submit(f, {[dk]: dest.v}, F.html);
-    if (res.ok && !BOT.dry) { const again = await readWeb(false).catch(() => null); if (again) { rows = again; if (again.some(x => String(x.id) === L.id)) res = {err: `listing ${L.id} is still on the Web Market after the buy: check it in the game`, unsure: true}; } }
-    settle(run, s, res, cost, `listing ${L.id}: ${n(L.qty)} ${L.product} at ${L.price} from ${L.seller || "?"}, to ${placeOf(dest.t)}`);
+    const F = await formAt(L.sellUrl, true), f = F.f;
+    if (!f || !new RegExp(`[?&]id=${reEsc(L.id)}(&|$)`).test(f.action)) { mark(s, "failed", "an unexpected screen came up after We sell, so nothing was sent"); oops(run); return rows; }
+    const dk = destOf(f), src = dk && destPick(f.opts[dk] || [], "warehouse");   // Mode 14: only a Sell button
+    if (dk && !src) { mark(s, "failed", "no single warehouse to ship from on the sell form"); oops(run); return rows; }
+    Object.assign(s, {qtyDone: L.qty, priceDone: L.price, amount: 0, orderId: L.id});
+    let res = await submit(f, src ? {[dk]: src.v} : {}, F.html);
+    if (res.ok && !BOT.dry) { const again = await readWeb(false).catch(() => null); if (again) { rows = again; if (again.some(x => String(x.id) === L.id)) res = {err: `listing ${L.id} is still on the Web Market after We sell: check it in the game`, unsure: true}; } }
+    settle(run, s, res, 0, `listing ${L.id}: sold ${n(L.qty)} ${L.product} at ${L.price} to ${L.seller || "?"}`);
     return rows;
   };
   const ecomSell = async (run, s) => {
-    const X = dash(), prod = s.product, price = prod ? shopPrice(prod) : null, stock = X.cash != null ? whStock(prod, X.warehouses || []) : null;
-    const owed = Object.values(BIDS.rows).map(fin).filter(o => o.so && o.result === "won" && !o.deliveredDay && prodIs(o.product, prod)).reduce((t, o) => t + Math.max(0, (o.qty || 0) - (o.allocated || 0)), 0);
+    const X = dash(), prod = s.product, price = s.price > 0 ? s.price : prod ? shopPrice(prod) : null, stock = X.cash != null ? whStock(prod, X.warehouses || []) : null, owed = owedOf(prod);
     const have = stock == null ? null : Math.max(0, stock - owed);
     let qty = Math.floor(s.qty ?? s.qtyMax ?? 0);
     if (have != null && have < qty && have >= (s.qtyMin ?? qty)) qty = Math.floor(have);
-    const no = !prod ? "the plan doesn't say which product" : price == null ? `no shop price for ${prod} on the dashboard to copy (selling prices are locked)` : !(qty > 0) ? "the plan gives no amount"
+    const no = !prod ? "the plan doesn't say which product" : price == null ? `no price for ${prod}: the plan gives none and the dashboard shows no shop price` : !(qty > 0) ? "the plan gives no amount"
       : have == null ? "can't read today's warehouse stock (the dashboard isn't on screen)" : have < qty ? `only ${n(have)} ${prod} in the warehouses${owed ? ` after the ${n(owed)} won B2B orders still need` : ""}` : "";
     if (no) { mark(s, "skipped", no); return; }
     if (!WEB.post && $id("MENU2_web1")) await readWeb(false);
@@ -1235,8 +1240,8 @@
     const F = await formAt(WEB.post), f1 = F.f, bk = Object.keys(f1.opts).find(k => f1.opts[k].some(o => /post to sell/i.test(o.t))), pk = Object.keys(f1.opts).find(k => k !== bk && pick1(f1.opts[k].filter(o => o.v), prod, o => o.t));
     const sell = bk && f1.opts[bk].find(o => /post to sell/i.test(o.t)), po = pk && pick1(f1.opts[pk].filter(o => o.v), prod, o => o.t);
     if (!sell || !po) { mark(s, "failed", !sell ? "no Post to Sell choice on the post form" : `no ${prod} on the post form`); oops(run); return; }
-    const days = String(Math.max(1, Math.round(s.days ?? 2))), type = s.repeat ? "REP" : "ONE", plan = s.price != null && Math.abs(s.price - price) > 0.005 ? `, not the plan's ${s.price}: prices are locked` : "";
-    const what = `${n(qty)} ${prod} at ${price} (the shop price${plan}), ${days}-day shipping, ${s.repeat ? "until paused" : "once"}`;
+    const days = String(Math.max(1, Math.round(s.days ?? 2))), type = s.repeat ? "REP" : "ONE";
+    const what = `${n(qty)} ${prod} at ${price}${s.price > 0 ? "" : " (the shop price)"}, ${days}-day shipping, ${s.repeat ? "until paused" : "once"}`;
     Object.assign(s, {qtyDone: qty, priceDone: price, amount: 0});
     if (BOT.dry) { settle(run, s, {ok: true, note: "practice, not sent"}, 0, "would post " + what); return; }
     const r1 = await sendForm(f1, {[bk]: sell.v, [pk]: po.v}, F.html); delete BOT.forms[WEB.post];

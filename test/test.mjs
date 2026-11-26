@@ -172,7 +172,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v13\.4/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v13\.5/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -421,15 +421,11 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const S = await p.evaluate(() => window.__ff.bot.run.steps.map(s => ({id: s.id, st: s.state, why: s.why}))), L = await server(), d = await p.evaluate(() => window.__ff.data());
   for (const s of S) console.log("  ", s.id, "=>", s.st, "|", s.why);
   const st = id => S.find(s => s.id === id) || {};
-  check("S listing bought whole to the warehouse", st("s:151").st === "done" && L.S.wstock[26].P1 === 5500 && !L.S.web.some(w => w.id === 151));
-  check("S over the plan's price skipped", st("s:152").st === "skipped" && /allows up to 12/.test(st("s:152").why) && st("s:122").st === "skipped" && /99999999.99/.test(st("s:122").why));
-  check("S a listing already gone skipped", st("s:151b").st === "skipped" && /isn't on the Web Market/.test(st("s:151b").why));
-  check("S listing bought to a store", st("s:153").st === "done" && L.S.stock[11].P3 === 700);
-  check("S cash paid", L.S.cash === 500000 - 4500 - 3000, "cash " + L.S.cash);
+  check("S never buys on the Web Market", ["s:151", "s:152", "s:122", "s:151b", "s:153"].every(id => st(id).st === "skipped" && /never buys/.test(st(id).why)) && !L.log.some(x => /TOBUY/.test(x.cmd || "")) && L.S.cash === 500000, "cash " + L.S.cash);
   const post = L.S.posts[0] || {};
-  check("S own post at the shop price, not the plan's", st("s:sell").st === "done" && post.bs === "S" && post.pcode === "p1" && post.qnt === "300" && post.price === "20" && post.days === "2" && post.type === "ONE", JSON.stringify(L.S.posts));
+  check("S own post at the plan's price", st("s:sell").st === "done" && post.bs === "S" && post.pcode === "p1" && post.qnt === "300" && post.price === "25" && post.days === "2" && post.type === "ONE", JSON.stringify(L.S.posts));
   check("S no post for more than the warehouse has", st("s:sell2").st === "skipped" && /only 1,000/.test(st("s:sell2").why) && L.S.posts.length === 1);
-  check("S web listings for the calculator", (d.web.listings || []).some(w => w.seller === "FF" && w.price === 20) && d.web.listings.some(w => w.id === "152" && w.price === 12.5));
+  check("S web listings for the calculator", (d.web.listings || []).some(w => w.seller === "FF" && w.price === 25) && d.web.listings.some(w => w.id === "152" && w.price === 12.5));
   check("S no price command", !L.log.some(x => x.m === "PRICE"));
   check("S no page errors", !errs.length, errs.join("; "));
   await ctx.close();
@@ -446,6 +442,22 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("S2 more than is free after the won orders: skipped", st("s2:big").st === "skipped" && /only 1,000 Americano .*4,000 won B2B orders/.test(st("s2:big").why), st("s2:big").why);
   check("S2 what is free: posted", st("s2:ok").st === "done" && L.S.posts.length === 1 && L.S.posts[0].qnt === "800", JSON.stringify(L.S.posts));
   check("S2 no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{   // a buyer's (red) Web Market listing: press We sell when it pays at least the plan's lowest price; never We buy
+  const {ctx, p, errs} = await open("", MEM, "&wfg=1");
+  await p.evaluate(pl => window.__ff.plan(pl), {...PLAN, steps: [
+    {id: "s3:160", seq: 1, section: "ecom", action: "sellto", target: "160", product: "Americano", qty: 300, price: 18, priceMin: 17},
+    {id: "s3:161", seq: 2, section: "ecom", action: "sellto", target: "161", product: "Hot Chocolate", qty: 100, price: 5, priceMin: 11},
+    {id: "s3:151", seq: 3, section: "ecom", action: "sellto", target: "151", product: "Americano", qty: 500, price: 9, priceMin: 8}]});
+  await click(p, '[data-bot="go"]'); await runDone(p);
+  const S = await steps(p), L = await server(), st = id => S.find(s => s.id === id) || {};
+  for (const s of S) console.log("  ", s.id, "=>", s.st, "|", s.why);
+  check("S3 We sell on a buyer's listing", st("s3:160").st === "done" && L.S.wstock[26].P1 === 4700 && !L.S.web.some(w => w.id === 160) && L.S.cash === 500000 + 5400, JSON.stringify([L.S.wstock[26], L.S.cash]));
+  check("S3 under the plan's lowest price: skipped", st("s3:161").st === "skipped" && /lowest is 11/.test(st("s3:161").why), st("s3:161").why);
+  check("S3 a seller's listing has no We sell: skipped", st("s3:151").st === "skipped" && /no We sell/.test(st("s3:151").why), st("s3:151").why);
+  check("S3 never We buy", !L.log.some(x => /TOBUY/.test(x.cmd || "") || /TOBUY/.test(x.q || "")));
+  check("S3 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 { 

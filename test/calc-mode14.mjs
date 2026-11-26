@@ -10,7 +10,7 @@ const check = (name, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"} $
 // the engine on its own, in node
 const html = readFileSync(new URL("../calc/index.html", import.meta.url), "utf8");
 const src = html.slice(html.indexOf('<script id="engine">') + 20, html.indexOf("</script>", html.indexOf('<script id="engine">')));
-const E = new Function(src + "\nreturn {fromPreset, plan, planSafe, stepsOf, bidModel, bidPick};")();
+const E = new Function(src + "\nreturn {fromPreset, plan, planSafe, stepsOf, bidModel, bidPick, ecomOf};")();
 const game = (cash, keepOpen = 2) => { const S = E.fromPreset("juice"); Object.assign(S.g, {day: 5, maxDay: 30, cash});
   S.C.forEach((c, i) => { c.open = i < keepOpen; c.area = c.open ? 200 : 0; }); return S; };
 
@@ -35,6 +35,23 @@ check("never under the floor", low.price >= 19, low.price);
 const mkOf = x => { const S = game(1e8); S.C.forEach(c => c.d = c.d.map(v => Math.round(v*x))); const R = E.plan(S, "balanced"); return {R, want: R.lowRev*0.7 >= 6000 ? 4000 : Math.floor(R.lowRev*0.7/100)*100}; };
 for (const x of [0.05, 1]) { const {R, want} = mkOf(x);
   check(`marketing ${want === 4000 ? "stays at 4,000 once 70% of the lowest sales is 6,000+" : "is 70% of the lowest store's sales"}`, R.mkStores.length > 0 && R.mkStores.every(m => m.budget === want), `lowest ${Math.round(R.lowRev)}, stores ${R.mkStores.map(m => m.budget).join(",")}, want ${want}`); }
+
+// Web Market: never buy; our leftover goes up at the vendor's price minus 0.6 a unit
+{ const S = game(1e8); S.web = {us: "FF", listings: [{id: 9, product: "Apple Juice", price: 1, qty: 500, seller: "Rival"}]};
+  const R = E.plan(S, "balanced"); R.whFree = S.P.map(() => 2000); R.flow.left = S.P.map(() => 800); R.b2bPlan = S.P.map(() => ({units: 1000}));
+  const ec = E.ecomOf(S, R);
+  check("Web Market: nothing to buy", ec.every(x => !x.buyMaxUnits), JSON.stringify(ec.map(x => x.buyMaxUnits)));
+  check("Web Market: leftover at the vendor price minus 0.6", ec.length > 0 && ec.every(x => x.sellAsk === +(R.vend(x.j, x.sellUnits) - 0.6).toFixed(2)), JSON.stringify(ec.map(x => [x.name, x.sellAsk, R.vend(x.j, x.sellUnits)])));
+  const ST = E.stepsOf(S, E.planSafe(S, "balanced"));
+  check("Web Market: no buy steps", !ST.steps.some(s => s.op === "ecomBuy")); }
+// a buyer's (red) listing: We sell when it pays at most 1 under the vendor price
+{ const S = game(1e8); S.wh = 0; const R0 = E.plan(S, "balanced"), v = j => R0.vend(j, 100);
+  S.web = {us: "FF", listings: [{id: 70, kind: "WTB", product: "Apple Juice", price: +(v(0) - 0.9).toFixed(2), qty: 100, seller: "Rival"},
+    {id: 71, kind: "WTB", product: "Orange Juice", price: +(v(1) - 1.5).toFixed(2), qty: 100, seller: "Rival"}]};
+  const X = E.planSafe(S, "balanced"); X.R.whFree = S.P.map(() => 5000);
+  const st = E.stepsOf(S, X).steps.filter(s => s.op === "ecomSellTo");
+  check("We sell: a buyer paying up to 1 under cost", st.length === 1 && st[0].target.listing === "70" && st[0].priceMin === +(v(0) - 1).toFixed(2), JSON.stringify(st.map(s => [s.target, s.price, s.priceMin])));
+  check("We sell: not more than 1 under cost", !st.some(s => s.target.listing === "71")); }
 
 // the page: only Mode 14, and 12i's B2B settings carried over once
 const b = await chromium.launch(process.env.CHROMIUM ? {executablePath: process.env.CHROMIUM} : {});

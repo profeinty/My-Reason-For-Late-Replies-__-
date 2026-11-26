@@ -1825,24 +1825,17 @@ function bidPick(M, b, o, R){
 /* today's steps, in the order the game needs them: deliveries and deals first, then space before the stock that lands in it,
    new stores before their stock, machines before their raw materials, then prices, marketing, bids and space to give back */
 const ecomLotOf = g => Math.max(1, Math.round(nd(g.ecomLot, 500)));   // units per web listing (listings seen: 23 to 500)
-const EST = {ecomBuy: 3, ecomSell: 4, setPriority: 2, check: 1, b2bDeliver: 1.5, b2bAccept: 1.5, setMachine: 1.5, rentSpace: 3, rentStore: 6, vendorPO: 3, buyMachine: 3, rawPO: 3, b2bPO: 3, setPrice: 1.5, setMarketing: 3, b2bBid: 2, releaseSpace: 3};
-/* The Web Market. Store prices stay as they are. Selling: we post our own sell listing for the units B2B won't take by the end
-   (the plan's leftover). Its price is the store price, or (when the team picks "plan") a cent under the cheapest other listing
-   (with none seen, what B2B would pay), never under the clearing floor (cash cost + margin). Buying: a seller's whole listing
-   for the warehouse's B2B stock, when it's at least 3% under what the vendor charges for today's B2B order and lands before the
-   B2B due day. Today's vendor order stays whole (its lots and tier price); a done buy is stock on the way, so the next plan's
-   vendor order is that much smaller. */
+const EST = {ecomBuy: 3, ecomSell: 4, ecomSellTo: 3, setPriority: 2, check: 1, b2bDeliver: 1.5, b2bAccept: 1.5, setMachine: 1.5, rentSpace: 3, rentStore: 6, vendorPO: 3, buyMachine: 3, rawPO: 3, b2bPO: 3, setPrice: 1.5, setMarketing: 3, b2bBid: 2, releaseSpace: 3};
+/* The Web Market: sell only, the team never buys there. We post our own sell listing for the units B2B won't take by the end
+   (the plan's leftover) at the vendor's price minus 0.6 a unit. Store prices stay as they are. */
 const webOf = S => { const W = S.web || {}; return {L: (Array.isArray(W.listings) ? W.listings : []).filter(l => !l.kind || /sell|wts|^s$/i.test(String(l.kind))), us: String(W.us || "FF").trim().toLowerCase()}; };   // sellers' listings (a "want to buy" listing is a buyer)
 function ecomOf(S, R){
   const {L, us} = webOf(S), ours = l => String(l.seller || "").trim().toLowerCase() === us;
   return S.P.map((p, j) => {
-    const free = Math.max(0, Math.floor(R.whFree[j])), sell = Math.min(free, Math.max(0, Math.round(R.flow.left[j] || 0))), X = R.prices[j];
+    const free = Math.max(0, Math.floor(R.whFree[j])), sell = Math.min(free, Math.max(0, Math.round(R.flow.left[j] || 0)));
     const others = L.filter(l => l.product === p.name && n(l.price) > 0 && !ours(l)), low = others.length ? Math.min(...others.map(l => n(l.price))) : null;
-    const sellMin = +X.b2bClear.toFixed(2), ask = low != null ? Math.floor((low - 0.01)*100 + 1e-6)/100 : R.priceOn(j, R.day);
-    const buy = R.clearing ? 0 : Math.max(0, Math.floor(n(R.b2bPlan[j].units)));
-    return {name: p.name, j, sellUnits: sell, sellMin, sellAsk: +Math.max(sellMin, ask).toFixed(2), lowestListing: low, ourListing: L.some(l => l.product === p.name && ours(l)), storePrice: X.ecom,
-      buyBelow: +(R.vend(j, Math.max(1, buy))*0.97).toFixed(2), buyMaxUnits: buy, buyMaxShipDays: Math.max(1, R.tie.due - 1)};
-  }).filter(x => x.sellUnits > 0 || x.buyMaxUnits > 0);
+    return {name: p.name, j, sellUnits: sell, sellAsk: +Math.max(0.01, R.vend(j, Math.max(1, sell)) - 0.6).toFixed(2), lowestListing: low, ourListing: L.some(l => l.product === p.name && ours(l))};
+  }).filter(x => x.sellUnits > 0);
 }
 
 function stepsOf(S, X){
@@ -1942,22 +1935,21 @@ function stepsOf(S, X){
   // for what B2B won't take by the end. Small amounts: these are the first to wait when the day is short of time.
   if (has.ecom && !rescue) {
     const {L, us} = webOf(S), ours = l => String(l.seller || "").trim().toLowerCase() === us, anyOurs = L.some(ours), sold = (S.book && S.book.ecomSell) || {};
-    let buys = 0;
+    const free = S.P.map((p, j) => Math.max(0, Math.floor(n(R.whFree[j]))));
+    for (const l of ((S.web || {}).listings || []).filter(l => /wtb|buy/i.test(String(l.kind || "")) && !ours(l) && n(l.price) > 0 && n(l.qty) > 0)) {   // a buyer's (red) listing
+      const j = P.findIndex(p => p.name === l.product); if (j < 0) continue;
+      const min = +(R.vend(j, n(l.qty)) - 1).toFixed(2);
+      if (n(l.price) < min || n(l.qty) > free[j]) continue;
+      free[j] -= n(l.qty);
+      add({tick: `ecom:sellto:${l.id}`, op: "ecomSellTo", section: "ecom", target: {listing: String(l.id), product: l.product}, qty: n(l.qty), price: n(l.price), priceMin: min, budget: 0,
+        action: `Press We sell on buyer listing ${l.id}: ${f0(n(l.qty))} ${l.product} at ${f2(n(l.price))} (the lowest we take is ${f2(min)}, the vendor's price minus 1).`,
+        why: "A buyer pays at most 1 under what the vendor charges us. It comes from warehouse stock that won B2B orders don't need."});
+    }
     for (const e of ecomOf(S, R)) {
-      let room = e.buyMaxUnits;
-      for (const l of L.filter(l => l.product === e.name && !ours(l) && n(l.price) > 0 && n(l.price) <= e.buyBelow && n(l.qty) > 0 && (!n(l.days) || n(l.days) <= e.buyMaxShipDays)).sort((a, b) => n(a.price) - n(b.price))) {
-        if (buys >= 2 || n(l.qty) > room) continue;
-        const st = add({tick: `ecom:buy:${l.id}`, op: "ecomBuy", section: "ecom", target: {listing: String(l.id), product: e.name}, qty: n(l.qty), price: n(l.price), dest: "warehouse",
-          budget: Math.ceil(n(l.qty)*n(l.price)), budgetKey: "b2b", arriveDay: day + Math.max(1, dd(n(l.days) || 1)), deps: whStep ? [whStep.id] : [],
-          action: `Buy Web Market listing ${l.id}: ${f0(n(l.qty))} ${e.name} at ${f2(n(l.price))} to the warehouse (vendor ${f2(e.buyBelow/0.97)}).`,
-          why: `Cheaper than the vendor and lands within ${f0(e.buyMaxShipDays)} days, before the B2B due day. Tomorrow's vendor B2B order is that much smaller.`});
-        if (acks[st.id] && acks[st.id].status === "done") continue;
-        room -= n(l.qty); buys++;
-      }
       if (e.sellUnits > 0 && !e.ourListing && !(sold[e.name] != null && !anyOurs && day - n(sold[e.name]) < 2)) {
-        const plan = g.ecomPrice === "plan", price = plan ? e.sellAsk : e.storePrice, qty = Math.min(e.sellUnits, ecomLotOf(g));
-        add({tick: `ecom:sell:${e.name}`, op: "ecomSell", section: "ecom", target: {product: e.name}, qty, price, priceRule: plan ? "plan" : "store", priceMin: e.sellMin, days: Math.max(1, R.lead + 1), repeat: false, budget: 0,
-          action: `Post a Web Market sell listing: ${f0(qty)} ${e.name} at ${f2(price)}${plan ? `, never under ${f2(e.sellMin)}` : " (the store price)"}, shipped in ${f0(Math.max(1, R.lead + 1))} days (once; posted again while there's leftover).`,
+        const price = e.sellAsk, qty = Math.min(e.sellUnits, ecomLotOf(g));
+        add({tick: `ecom:sell:${e.name}`, op: "ecomSell", section: "ecom", target: {product: e.name}, qty, price, priceRule: "vendor-0.6", days: Math.max(1, R.lead + 1), repeat: false, budget: 0,
+          action: `Post a Web Market sell listing: ${f0(qty)} ${e.name} at ${f2(price)} (the vendor's price minus 0.6), shipped in ${f0(Math.max(1, R.lead + 1))} days (once; posted again while there's leftover).`,
           why: `About ${f0(e.sellUnits)} ${e.name} would still be in the warehouse at the end at the B2B share we expect.`});
       }
     }
@@ -2068,14 +2060,14 @@ function checksOf(S, X, ST){
 /* the bot reads steps in its own shape: section (b2b, rent_shop, rent_wh, machine, buy_raw, buy_store, marketing, price), action (a verb),
    target (a name: city, store, warehouse, machine type, product, or the B2B offer number), product, qty, price, cost, term, agency, floor.
    Rent qty is the TOTAL m² wanted. Steps the bot can't run (checks, B2B rules with no offer number, deliveries) stay on the calculator's list. */
-const BOTSEC = {b2bAccept: "b2b", b2bBid: "b2b", rentStore: "rent_shop", vendorPO: "buy_store", rawPO: "buy_raw", b2bPO: "buy_wh_goods", buyMachine: "machine", setMachine: "machine", setPriority: "machine", setPrice: "price", setMarketing: "marketing", ecomBuy: "ecom", ecomSell: "ecom"};
+const BOTSEC = {b2bAccept: "b2b", b2bBid: "b2b", rentStore: "rent_shop", vendorPO: "buy_store", rawPO: "buy_raw", b2bPO: "buy_wh_goods", buyMachine: "machine", setMachine: "machine", setPriority: "machine", setPrice: "price", setMarketing: "marketing", ecomBuy: "ecom", ecomSell: "ecom", ecomSellTo: "ecom"};
 function botStepOf(S, R, s){
   const g = S.g, T = s.target || {}, term = Math.max(1, Math.round(n(g.rentTerm)) || 1);
   const wh = String(g.whName || g.whCity || "").trim() || (R.active[0] || S.C[0] || {}).name || "";   // no warehouse yet: the first store's city
   const space = s.op === "rentSpace" || s.op === "releaseSpace", whSpace = space && T.place === "warehouse";
   const section = space ? (whSpace ? "rent_wh" : "rent_shop") : BOTSEC[s.op];
   if (!section || ((s.op === "b2bAccept" || s.op === "b2bBid") && !T.offer)) return null;
-  const action = {b2bAccept: "accept", b2bBid: "bid", rentStore: "rent", rentSpace: "rent", releaseSpace: "release", vendorPO: "buy", rawPO: "buy", b2bPO: "buy", buyMachine: "buy", setPriority: "priority", setPrice: "set", setMarketing: "set", ecomBuy: "buy", ecomSell: "sell"}[s.op]
+  const action = {b2bAccept: "accept", b2bBid: "bid", rentStore: "rent", rentSpace: "rent", releaseSpace: "release", vendorPO: "buy", rawPO: "buy", b2bPO: "buy", buyMachine: "buy", setPriority: "priority", setPrice: "set", setMarketing: "set", ecomBuy: "buy", ecomSell: "sell", ecomSellTo: "sellto"}[s.op]
     || (/^switch:/.test(s.tick) ? "switch" : /^(idle|pause):/.test(s.tick) ? "pause" : "set");
   const target = section === "rent_shop" || section === "buy_store" || section === "marketing" ? T.city
     : section === "rent_wh" || section === "buy_raw" || section === "buy_wh_goods" ? wh : section === "machine" ? (T.type || "") : section === "price" ? T.product : section === "ecom" ? (T.listing ?? T.product) : T.offer;
@@ -2158,7 +2150,7 @@ function toPlan(S, X, mode){
       clearAuto: !!R.CLR.auto, clearShare: Math.max(R.CLR.share, n(g.b2bShare)), clearUnits: Math.round(S.P.reduce((t, p, j) => t + n(p.wh) + R.flow.made[j], 0)), leftAtEnd: R.flow.left.map(Math.round),
       products: ST.b2bProducts.map(({j, ...b}) => b)},
     rules: {priceLock: true, machineGoal: R.goal, rawSpareDays: R.rawDays, machineOutputPct: Math.round(effPct(g)), machineOutputFrom: nd(g.mEff, null) != null ? "typed" : nd(g.mEffSeen, null) != null ? "game" : "default"},
-    ecom: partsOf(S).ecom ? {rules: {storePricesLocked: true, sellPrice: g.ecomPrice === "plan" ? "plan" : "store", sellNeverUnder: "sellMin", askUnderLowestListingBy: 0.01, lot: ecomLotOf(g), buyWholeListingTo: "warehouse", nextVendorB2BBuySmaller: true},
+    ecom: partsOf(S).ecom ? {rules: {storePricesLocked: true, sellPrice: "vendor-0.6", lot: ecomLotOf(g), buy: false},
       products: ecomOf(S, R).map(({j, ...x}) => x)} : null,
     budgets: botBudgets, caps: budgets, bySection, cutoffs: T.cutoffs, steps: bot, all: ST.steps, estSecNow: ST.estSecNow,
     limits: {botSec: ST.botSec, txSec: n(g.txSec) || 1, safeTargetPct: n(g.safeTarget) || 90, errorBudgetPct: 100 - (n(g.safeTarget) || 90), priceTolPct: n(g.priceTol), maxMachines: R.MAXM, maxPlanAgeSec: 90},
@@ -2710,8 +2702,7 @@ const BODY = {
   b2b: () => `<div class="grid">${fld("g.b2bShare", "% of B2B forecast we win")}${fld("g.b2bPricePct", "B2B price % of retail")}${fld("g.b2bMin", "Min B2B fund %")}${fld("g.b2bBoost", "B2B boost ×")}</div>
     <div class="grid">${fld("g.clearFrom", "Clearing starts on day (blank = auto)")}${fld("g.clearShare", "% of B2B we win while clearing")}${fld("g.clearCut", "Clearing: % under the max bid")}${fld("g.clearMargin", "Clearing floor: cash cost + %")}</div>
     <p class="hint">Clearing empties the warehouse by the end: from that day B2B bids go lower (down to the cash cost, since the machines are paid for) and win a bigger share. Blank = the latest day that still sells everything (a third to 80% of the game). The cut under the max bid is used until there's bid history; after that the bid comes from what the other teams bid.</p>
-    ${partsOf(S).ecom ? `<div class="row"><label class="hint" for="${fid("g.ecomPrice")}">Web Market sell listings</label><span>${sel("g.ecomPrice", [["store", "At the store price (never changed)"], ["plan", "A cent under the cheapest listing, never below cost"]])}</span></div>
-    <div class="grid">${fld("g.ecomLot", "Units per web listing")}</div>` : ""}
+    ${partsOf(S).ecom ? `<div class="grid">${fld("g.ecomLot", "Units per web listing")}</div>` : ""}
     <div class="fld wide"><div class="fl"><label for="${fid("g.bidLog")}">Past bids, one a line: product, max bid, winning price, our bid, won/lost, day, winner (the bot fills these in by itself)</label></div><textarea id="${fid("g.bidLog")}" data-k="g.bidLog" data-s="1" rows="3" spellcheck="false" placeholder="Americano, 12.80, 11.50, 11.90, lost, 14, Team 3">${esc(S.g.bidLog || "")}</textarea></div>
     <p class="hint">Compares what retail and B2B can each earn from their forecasts, then splits the investable cash. The boost and minimum keep the B2B fund on the big side. Latest game: we won 13% of B2B at ~32–44% of retail price.</p>
     <div class="grid">${fld("g.b2bPayDays", "B2B pay wait (days after delivery)")}${fld("g.b2bDueDays", "B2B due (days after accepting)")}${fld("g.payOffset", "Extra day before money lands")}</div>
@@ -2994,8 +2985,7 @@ function renderPlan(){
   const ecomRows = has.ecom ? ecomOf(S, R) : [];
   const priceCard = card("price", "RTL", has.b2b ? "Prices and B2B floors" : "Prices", "locked", `<p class="hint">Selling prices are locked: the plan never changes the store or online prices, and the bot doesn't touch them either.${has.ecom ? " Only new Web Market listings get a price, never under the floor." : ""}</p><div class="tw"><table class="pt"><thead><tr><th class="tk"><span class="sr">Done</span></th><th>Product</th><th class="n">Vendor cost</th><th class="n">Price</th>${has.ecom ? '<th class="n">E-com</th>' : ""}${has.b2b ? '<th class="n">B2B floor</th>' : ""}<th>Note</th></tr></thead><tbody>
     ${R.prices.map(x => `${x.change ? tr(`price:${x.p.name}`, `set the ${x.p.name} price`) : '<tr><td class="tk"></td>'}<td>${esc(x.p.name)}</td><td class="n">${f2(x.cost)}</td><td class="n"><b>${f2(x.rec)}</b></td>${has.ecom ? `<td class="n">${f2(x.ecom)}</td>` : ""}${has.b2b ? `<td class="n"><b>${f2(x.b2b)}</b></td>` : ""}<td class="why">${x.why}${has.b2b && x.frac > 0 ? ` · B2B ${x.frac < 1 ? pct(x.frac) + " " : ""}made in-house (cost ${f2(x.b2bCost)})` : ""}</td></tr>`).join("")}</tbody></table></div>
-    ${has.ecom && ecomRows.length ? `<p class="hint"><b>Web Market</b> (store prices stay as they are): ${ecomRows.map(x => [x.sellUnits > 0 ? `${f0(x.sellUnits)} ${esc(x.name)} that B2B won't take by the end go on our own listing (${f0(ecomLotOf(S.g))} at a time) at ${S.g.ecomPrice === "plan" ? `${f2(x.sellAsk)}, never under ${f2(x.sellMin)}` : `the store price ${f2(x.storePrice)}`}` : "",
-      x.buyMaxUnits > 0 ? `buy ${esc(x.name)} listings at ${f2(x.buyBelow)} or less (up to ${f0(x.buyMaxUnits)} for B2B, landing within ${f0(x.buyMaxShipDays)} days) instead of from the vendor` : ""].filter(Boolean).join("; ")).join(" · ")}.</p>` : ""}
+    ${has.ecom && ecomRows.length ? `<p class="hint"><b>Web Market</b> (store prices stay as they are): ${ecomRows.map(x => [x.sellUnits > 0 ? `${f0(x.sellUnits)} ${esc(x.name)} that B2B won't take by the end go on our own listing (${f0(ecomLotOf(S.g))} at a time) at ${f2(x.sellAsk)}, the vendor's price minus 0.6` : ""].filter(Boolean).join("; ")).join(" · ")}.</p>` : ""}
     <div class="row"><button type="button" class="primary" id="copy">Copy plan for team chat</button></div><textarea id="copyText" hidden readonly aria-label="Plan text"></textarea>`);
 
   // the same five answers for each strategy

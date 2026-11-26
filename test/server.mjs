@@ -25,7 +25,8 @@ const reset = (o = {}) => {
     mkt: {MA: {11: 5000, 13: 0, 17: 2000}, MB: {11: 0, 13: 0, 17: 0}, MC: {11: 0, 13: 0, 17: 0}}, offers: {12: "open", 13: "open", 14: "open"}, fail: o.fail || "",
     machines: [], prdline: "", posts: [], pos: [], draft: null, allocErr: [], nextBatch: 9000,
     web: [{id: 151, product: "P1", price: 9, qty: 500, days: 2, seller: "TGED"}, {id: 152, product: "P2", price: 12.5, qty: 300, days: 3, seller: "Bolo"},
-      {id: 122, product: "P3", price: 99999999.99, qty: 500, days: 5, seller: "TGED"}, {id: 153, product: "P3", price: 15, qty: 200, days: 2, seller: "Neo"}],
+      {id: 122, product: "P3", price: 99999999.99, qty: 500, days: 5, seller: "TGED"}, {id: 153, product: "P3", price: 15, qty: 200, days: 2, seller: "Neo"},
+      {id: 160, product: "P1", price: 18, qty: 300, days: 2, seller: "Bolo", kind: "WTB"}, {id: 161, product: "P2", price: 5, qty: 100, days: 2, seller: "Neo", kind: "WTB"}],   // WTB: a buyer's (red) listing
     // the B2B Sales Order list: finished history (a win, a loss, a void, a tie lost, an old win) and, with ?so=1, two won orders to ship
     sos: [so(705, {product: "P1", qty: 3000, ourBid: 12, bids: [["FF", 12, 1], ["booyah", 12.4]], status: "Completed", allocated: 3000, allocDay: 3, delivered: 4, req: 1}),
       so(704, {product: "P3", qty: 9000, maxBid: 23, minBidders: 2, ourBid: 18, bids: [["FF", 18]], status: "Cancelled", req: 1}),
@@ -107,7 +108,7 @@ const txRow = t => `<div id="row${t.id}"><div class="xxxxxx"><div class="row">
 const txPage = (tpe, from, to) => { const list = S.tx.filter(t => t.tpe === tpe).sort((a, b) => b.id - a.id);
   return `${list.slice(from, to).map(txRow).join("")}${list.length > to ? `<div id="content5${to}"><div><a id="loadmore" href="table_record?cmd=LIST&amp;latestPage=${to}&amp;cmd=LIST&amp;mode=MODE_TRANSACTION&amp;tpe=${tpe}">Load More (${list.length - to} to go)</a></div></div>` : ""}`; };
 // which screen each action waits on (a guess past RTL): machines on MRP on purpose, so the bot has to find them
-const TXOF = {SPACE_MANAGE: q => S.shops[q.get("ac")] ? "RTL" : "WHS", BUY_FG: () => "RTL", BUY_RM: () => "MRP", INVEST_MKT: () => "MKT", TOBUY_ECM: () => "ECM", WEB_POST: () => "ECM", PRD_MACHINE_BUY: () => "MRP", PRD_PRODUCT_ORDER: () => "MRP"};
+const TXOF = {SPACE_MANAGE: q => S.shops[q.get("ac")] ? "RTL" : "WHS", BUY_FG: () => "RTL", BUY_RM: () => "MRP", INVEST_MKT: () => "MKT", TOBUY_ECM: () => "ECM", TOSELL_WMKT: () => "ECM", WEB_POST: () => "ECM", PRD_MACHINE_BUY: () => "MRP", PRD_PRODUCT_ORDER: () => "MRP"};
 const txAdd = (tpe, type, what, who = ME) => { const t = {id: S.nextTx++, tpe, type, what, who, asked: S.day, status: "Requested"}; S.tx.push(t); return t; };
 const txWhat = (q, b) => { const cmd = q.get("cmd");
   if (cmd === "SPACE_MANAGE") { const ac = q.get("ac"), s = S.shops[ac] || S.whs[ac]; return ["TX", `${S.shops[ac] ? "Retail" : "Warehouse"} Rental ${s.area ? "Change" : "Start"} ${s.name}. Rental Fee : ${s.rate} EUR / Day From ${s.area || "(No Contract)"} To ${b.get("rent" + ac)} m2 (${b.get("terms" + ac)}-day Contract )`]; }
@@ -135,7 +136,11 @@ const allocForm = (q, o, to) => {
   $('.boxMove').on('click', function (event) { let box = $(this).closest('.box'); let loc = box.parent().attr('lc'); updateData.push(addBatchData(boxId, batch, pc, loc, '${to}', qnt, qnt, exp, dayIn, priority, status)); });
   $('#dbutton').click(function() { $('#hidBatchData').val(JSON.stringify(updateData)); }); });</script>`;
 };
-const webRow = w => `<div id="row${w.id}"><div><div><h6>WTS</h6> ID: <span><b>${w.id}</b><ol><li><div><b>${NAMES[w.product]}<div></div><br></b><ul><li><b>Price: </b><span>${w.price.toLocaleString("en", {minimumFractionDigits: 2})} EUR</span></li><li><b>Quantity: </b><span>${w.qty} Unit</span></li><li><b>Shipment: </b><span>${w.days} day</span></li><li><b>Seller: </b><span>${w.seller}</span></li><li><b>Rating: </b><span></span></li></ul></div></li></ol>
+const webRow = w => w.kind === "WTB" ? `<div class="col-12" id="row${w.id}"><article class="card ms-ecm-card"><div class="card-body"><div><div><span class="ms-ecm-type ms-ecm-badge-buy">WTB</span> <span class="ms-ecm-id">#${w.id}</span></div></div>
+  <div class="ms-ecm-product">${NAMES[w.product]}</div><dl class="ms-ecm-details"><div><dt>Price</dt><dd class="ms-ecm-price">GBP ${w.price.toFixed(2)}</dd></div><div><dt>Quantity</dt><dd>${w.qty.toLocaleString("en")} Unit</dd></div>
+  <div><dt>Delivery</dt><dd>${w.days} days</dd></div><div><dt>Buyer</dt><dd>${w.seller}</dd></div><div><dt>Rating</dt><dd><span class="ms-ecm-rating"></span></dd></div><div><dt>Buyer Location</dt><dd><button class="ms-ecm-map-button">See Map</button></dd></div></dl>
+  <div class="ms-ecm-actions"><a class="btn ms-ecm-primary-action" href="ms_sure_learner?cmd=TOSELL_WMKT&amp;id=${w.id}&amp;unique=&amp;prc=${w.price.toFixed(2)}">We sell</a></div></div></article></div>`   // a Mode 14 buyer's card
+  : `<div id="row${w.id}"><div><div><h6>${w.kind || "WTS"}</h6> ID: <span><b>${w.id}</b><ol><li><div><b>${NAMES[w.product]}<div></div><br></b><ul><li><b>Price: </b><span>${w.price.toLocaleString("en", {minimumFractionDigits: 2})} EUR</span></li><li><b>Quantity: </b><span>${w.qty} Unit</span></li><li><b>Shipment: </b><span>${w.days} day</span></li><li><b>Seller: </b><span>${w.seller}</span></li><li><b>Rating: </b><span></span></li></ul></div></li></ol>
   ${w.seller === "FF" ? "" : `<span><a href="ms_sure_learner?cmd=TOBUY_ECM&amp;id=${w.id}&amp;unique=&amp;prc=${w.price.toFixed(2)}"><span>We buy</span></a></span>`}</span></div></div></div>`;
 const dailyRows = () => [4, 3].map(d => `<tr><td>${d}</td><td><div>${S.machines.map(m => `<div><div>${m.id}</div><div>${NAMES[m.setup]}</div><div></div>${["P1", "P2", "P3"].map(p => `<div>${p === m.setup ? m.made : 0}</div>`).join("")}</div>`).join("")}</div></td></tr>`).join("");
 // Mode 14 (&m14=1): buying is a 3-step wizard as the real game's (vendor card, then place and quantities in 500s, then confirm), and each vendor has a Negotiate link
@@ -210,6 +215,7 @@ const FORM = {
   B2B_DEAL: q => bare(`ms_sure_learner?submit=1&step=&cmd=B2B_DEAL&id=${q.get("id")}&ret=row${q.get("id")}`, `<p>Deal Buyer Cafe X Product Americano Quantity 3000 Total 42,000 EUR Expected Delivery Day 9</p>`, `<input type="submit" id="dbutton" value="Deal">`),
   B2B_BID: q => bare(`ms_sure_learner?submit=1&step=&cmd=B2B_BID&id=${q.get("id")}&ret=row${q.get("id")}`, `<p>Bid Buyer Hotel Y Product Hot Chocolate Quantity 2000 Max bid price allowed 15.5 Expected Delivery Day 9 Bid Price <input type="number" name="bidprice" value=""> <input type="range" value="1550"></p>`),
   B2BECM_SOS_ALLOC_FAST: q => { const ecm = q.get("tpe") === "ECM", o = ecm ? S.wsos.find(w => w.id == q.get("id")) : S.sos.find(x => x.id == q.get("id")); return o ? allocForm(q, o, ecm ? "ECM" : "B2B") : "<div>Nothing to allocate.</div>"; },
+  TOSELL_WMKT: q => bare(`ms_sure_learner?submit=1&step=&cmd=TOSELL_WMKT&id=${q.get("id")}&unique=&prc=${q.get("prc")}`, `<p>We sell Buyer ... Quantity ... Total ... GBP</p>`, `<input type="submit" id="dbutton" value="Sell">`),
   TOBUY_ECM: q => bare(`ms_sure_learner?submit=1&step=&cmd=TOBUY_ECM&id=${q.get("id")}&unique=&prc=${q.get("prc")}`, `<p>We buy Seller ... Looks like a good one</p><p>Ship to <select name="destination" id="destination">${rented().map(lc => `<option value="${lc}">${PLACE[lc]}</option>`).join("")}</select></p>`, `<input type="submit" id="dbutton" value="Buy">`),
   WEB_POST: () => bare("ms_sure_learner?submit=1&step=NEED_PRODUCT&cmd=WEB_POST&ret=MENU2_web_retail", `<p>Are you sure? Please Select One <select name="BS_____"><option value="B">Post to Buy</option><option value="S">Post to Sell</option></select></p><p>Product <select name="pcode"><option value="p1">Americano</option><option value="p2">Hot Chocolate</option><option value="p3">Bubble Milk Tea</option></select></p>`, `<input type="submit" value="Submit">`),
   PRD_MACHINE_BUY: q => bare(`ms_sure_learner?submit=1&step=&cmd=PRD_MACHINE_BUY&mac=${q.get("mac")}`, `<p>Buy Machine Purchase ${MACH[q.get("mac")].name}</p><p>Warehouse <select name="lc">${Object.entries(S.whs).filter(([, w]) => w.area > 0).map(([lc]) => `<option value="${lc}">${PLACE[lc]}</option>`).join("")}</select></p>`, `<input type="submit" value="Submit">`),
@@ -258,6 +264,10 @@ const apply = (q, b) => {
     const dest = b.get("destination"); if (!PLACE[dest]) return "Error: choose a destination";
     S.cash -= w.price*w.qty; const st = S.whs[dest] ? (S.wstock[dest] = S.wstock[dest] || {}) : S.stock[dest]; st[w.product] = (st[w.product] || 0) + w.qty;
     S.web = S.web.filter(x => x !== w); S.pos.push({id: 300 + S.pos.length, seller: w.seller, product: w.product, qty: w.qty, price: w.price, dest: +dest}); return "Funds are in escrow until the goods arrive."; }
+  if (cmd === "TOSELL_WMKT") { const w = S.web.find(x => x.id == q.get("id") && x.kind === "WTB"); if (!w) return "Sorry, this item is no longer available.";
+    const src = Object.keys(S.wstock).find(lc => (S.wstock[lc][w.product] || 0) >= w.qty) || "26", st = S.wstock[src] || {};
+    if ((st[w.product] || 0) < w.qty) return "Error: not enough stock";
+    st[w.product] -= w.qty; S.cash += w.price*w.qty; S.web = S.web.filter(x => x !== w); S.wsold = [...(S.wsold || []), {id: w.id, from: +src, qty: w.qty, price: w.price}]; return "Thank you. The buyer will pay on delivery."; }
   if (cmd === "WEB_POST") {
     if (q.get("step") === "NEED_PRODUCT") { S.draft = {bs: b.get("BS_____"), pcode: b.get("pcode")}; return null; }   // the second screen
     if (!S.draft) return "Error: start the post again";
