@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.5", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.6", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -149,7 +149,7 @@
         if (!await until(() => flat().includes(check), 4000)) wait = 3500;
       }
     };
-    const steps = [["GEN General","Product 1 Allow"],["FIN Finance","Initial Cash"],["PMN Procurement","Vendor 1 Allow"],["RTL Retail","Consumer Store Loyalty"],
+    const steps = [["GEN General","Product 1 Allow"],["Physical Goods Allow","Product 1 Allow"],["FIN Finance","Initial Cash"],["PMN Procurement","Vendor 1 Allow"],["RTL Retail","Consumer Store Loyalty"],
       ["MKT Marketing","Marketing Report Fee"],["PRD Production","Equipment 1 Allow"],["HCM Human","Initial Staff Salary"],["Vendor 1 Allow","Vendor 1 Lead Time"]];
     const between = async () => { if (ready && D && D.day !== dayRead) await daily(); };
     for (const [l, c] of steps) { await between(); say(`Reading the game setup: ${l}…`); await expand(l, c); }
