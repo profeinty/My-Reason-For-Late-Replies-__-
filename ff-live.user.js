@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         FF live (loads by itself)
 // @namespace    https://profeinty.github.io/Secret-FF-Doomsday-Project/
-// @version      1.0
+// @version      1.1
 // @description  Loads the FF reader and bot on the MonsoonSIM game tab every time it opens, so there is no bookmark to click.
 // @match        https://*.monsoonsim.com/*/game_player.html*
 // @run-at       document-idle
 // @grant        none
-// @downloadURL  https://profeinty.github.io/Secret-FF-Doomsday-Project/ff-live.user.js
-// @updateURL    https://profeinty.github.io/Secret-FF-Doomsday-Project/ff-live.user.js
+// @downloadURL  https://profeinty.github.io/My-Reason-For-Late-Replies-__-/ff-live.user.js
+// @updateURL    https://profeinty.github.io/My-Reason-For-Late-Replies-__-/ff-live.user.js
 // ==/UserScript==
 (() => {
   if (window.__ff) return;   // already running (the bookmark was clicked first)
@@ -15,6 +15,6 @@
   window.__FF_MODE = /^1[0-9]i?$/i.test(mode) ? mode : "14";   // the game's address names its mode: /14/...
   const s = document.createElement("script");
   s.charset = "utf-8";
-  s.src = "https://profeinty.github.io/Secret-FF-Doomsday-Project/reader.js?t=" + Date.now();   // always the newest reader
+  s.src = "https://profeinty.github.io/My-Reason-For-Late-Replies-__-/reader.js?t=" + Date.now();   // always the newest reader
   (document.head || document.documentElement).appendChild(s);
 })();
