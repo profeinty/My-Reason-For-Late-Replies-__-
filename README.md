@@ -2,7 +2,7 @@
 
 Hosts the FF MonsoonSIM game reader so the **FF live** bookmark can load the newest version on every click.
 
-- `reader.js` is the reader (v13.6). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
+- `reader.js` is the reader (v13.7). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
 - `index.html` is the install page with the bookmark for Mode 14 (Mode 12i is no longer played).
 - `ff-live.user.js` is the same loader as a Tampermonkey userscript: the FF panel opens by itself on every game tab, with no bookmark to click.
 - `calc/index.html` is the FF calculator as a web page (v42, Mode 14 only): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
@@ -35,7 +35,7 @@ It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag fo
 
 The Deals tab checks B2B > B2B Offers and shows which open deals it would grab. Smart mode: enough stock in the warehouses and price at least cost x margin (default 1.15); bids go in 3% under the max price. Grab all mode skips those checks. One deal per product per day (the game's limit). The Deals tab only previews; the Bot tab accepts and bids on the deals the calculator's plan picks. (The Auto tab and its auto-click were removed in v11.)
 
-## Bot (reader v13.6)
+## Bot (reader v13.7)
 
 The Bot tab follows the calculator's plan: every quantity, price and budget comes from the calculator, nothing is a fixed number in the bot.
 

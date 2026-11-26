@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.6", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.7", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -288,16 +288,42 @@
     save();
   };
 
+  const cardsIn = h => [...dom(h).querySelectorAll(".ms-loc-card")].map(c => {
+    const o = {name: tx(c.querySelector(".ms-loc-title")), demo: [...c.querySelectorAll(".ms-demo-item")].map(e => toNum(tx(e)))};
+    for (const k of ["Retail", "Warehouse"]) { const t = tx([...c.querySelectorAll(".ms-dept")].find(x => tx(x.querySelector(".ms-dept-label")) === k));
+      o[k] = {area: toNum((t.match(/([\d,]+) m2\b/) || [])[1]) || 0, rent: +((t.match(/Rent Fee: ([\d.]+)/) || [])[1] || 0)}; }
+    return o;
+  }).filter(c => c.name);
   const SLOW = {
     rents: async () => {
       const loc = text(await page("MENU2_retail_location"));
-      const cities = [...loc.matchAll(/Location: ([^$]+?)\s*(?:\$\(|Specification)[\s\S]*?Retail Rental:\s*([\d.]+)/g)].map(m => {
+      let cities = [...loc.matchAll(/Location: ([^$]+?)\s*(?:\$\(|Specification)[\s\S]*?Retail Rental:\s*([\d.]+)/g)].map(m => {
         const demo = m[0].match(/Seniors ([\d,]+) Adults ([\d,]+) Juniors ([\d,]+)/);
         return {name: m[1].trim(), rent: +m[2], demo: demo ? demo.slice(1).map(toNum) : null};
       });
       if (cities.length) D.cities = cities;
+      else if ((cities = cardsIn(await page("MENU2_retail_location"))).length) {   // 2026-11 layout: one card per city
+        D.cities = cities.map(c => ({name: c.name, rent: c.Retail.rent, demo: c.demo}));
+        D.shopArea = Object.fromEntries(cities.map(c => [c.name, c.Retail.area]));
+        D.whLocs = cities.map(c => ({name: c.name, area: c.Warehouse.area})); if (!D.whRent) D.whRent = cities.map(c => c.Warehouse.rent).find(r => r > 0) || null;
+      }
     },
     warehouse: async () => { const h = await page("MENU2_whs_location"), wh = text(h).match(/Warehouse Rental:\s*([\d.]+)/); if (wh) D.whRent = +wh[1]; whSeen(h); },
+    // 2026-11 layout: the dashboard no longer lists stores, so stores come from Retail Sales & Price, warehouses from the Warehouse stock screen
+    stores: async () => {
+      if (dash().stores.length || !$id("MENU2_MODE_RTL_SALES") || !(D.cities || []).length) return;
+      const t = text(await page("MENU2_MODE_RTL_SALES")), names = D.cities.map(c => c.name), esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const at = names.map(c => [c, t.search(new RegExp(`(?<![A-Za-z])${esc(c)} ?Retail ?Change Price`))]).filter(x => x[1] >= 0).sort((a, b) => a[1] - b[1]);
+      const st = at.map(([c, i], k) => { const b = t.slice(i, k + 1 < at.length ? at[k + 1][1] : undefined);
+        return {name: c, area: (D.shopArea || {})[c] ?? null, used: null, items: (D.products || []).map(p => { const m = b.match(new RegExp(`${esc(p.name)}((?:\\D{1,4}\\d[\\d,]*(?:\\.\\d+)?){5})`)), v = m && m[1].match(/\d[\d,]*(?:\.\d+)?/g);
+            return v && {name: p.name, price: toNum(v[1]), qty: toNum(v[4])}; }).filter(Boolean)}; }).filter(s => s.items.length);   // Unit Sold, Price, Sales, COGS, Unit Remain
+      if (st.length) D.stores = st;
+      if (!$id("MENU2_MODE_WHS_INVENTORY")) return;
+      const d = dom(await page("MENU2_MODE_WHS_INVENTORY"));
+      D.warehouses = [...d.querySelectorAll('[href^="#loc-"]')].map(a => { const p = d.getElementById(a.getAttribute("href").slice(1)), name = tx(a), items = {};
+        for (const b of p ? p.querySelectorAll(".box") : []) { const nm = tx(b.querySelector("span")); items[nm] = (items[nm] || 0) + (toNum(tx(b.querySelector('[id^="Q"]'))) || 0); }
+        return {name, machines: 0, area: ((D.whLocs || []).find(w => name.startsWith(w.name)) || {}).area || 0, used: null, items: Object.entries(items).map(([name, qty]) => ({name, qty}))}; });
+    },
     forecast: async () => {
       const fh = await page("MENU2_chart_rtl_forecast"), f = {}, spikes = new Set(), ratios = [];
       for (const s of seriesIn(fh).filter(s => s.pairs)) {
@@ -370,6 +396,7 @@
     if (lap.day === day && lap.h0 == null) lap.h0 = hits;
     if (BOT.on && !BOT.dry && $id("MENU2_B2Bincm")) { const op = lap.day === day && lap.op; if (!op && ready) say(`Day ${day}: reading the B2B offers…`); await (op || dayOffers(day)); }
     if (ready) say(`Day ${day}: reading sales…`);
+    await quiet(SLOW.stores, "Stores");
     let last = null; try { last = await readSales(); } catch (e) { log("Sales: " + e.message); }
     salesWait = last != null && last < day - 1 ? {day, tries: 0, at: Date.now()} : null;
     if (!salesWait) salesDone(day);
