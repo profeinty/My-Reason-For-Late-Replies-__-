@@ -12,7 +12,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"FF MonsoonSIM Calculator","url":"https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/","applicationCategory":"GameApplication","operatingSystem":"Any","description":"MonsoonSIM planner for Team FF: daily stock, marketing, B2B bids and cash, filled live from your game."}</script>
 <link rel="stylesheet" href="../fonts/fonts.css">
-<!-- FF calculator v42 (web) -->
+<!-- FF calculator v43 (web) -->
 <style>
 /* Layout: brand bar + game-data strip on top. Wide screens: inputs as a sticky tabbed sidebar (left),
    today's plan as the main column (right) that the page scrolls. Phones: the plan comes first. */
@@ -1106,7 +1106,7 @@ const parseDays = s => String(s ?? "").split(/[,\s]+/).map(Number).filter(x => x
 const partsOf = S => {
   const m = S.mods || {}, g = S.g;
   return {prod: S.M.length > 0 || S.own.length > 0, b2b: m.b2b !== false && S.P.some(p => n(p.b2bFc) > 0), mkt: m.mkt !== false,
-    media: [g.mSen, g.mAdu, g.mJun].some(Boolean), ecom: m.ecom !== false, wh: m.whs !== false, od: n(g.odLimit) > 0, report: n(g.report) > 0};
+    media: true, ecom: m.ecom !== false, wh: m.whs !== false, od: n(g.odLimit) > 0, report: n(g.report) > 0};
 };
 const phaseOf = (day, maxDay) => { const left = maxDay - day; return left <= 6 ? "Close" : left <= 10 ? "Harvest" : day <= 5 ? "Land grab" : day <= 12 ? "Learn" : "Grow"; };
 /* the warehouse clearing: from mid game on, B2B bids go lower (down to cash cost) and win a bigger share, so the warehouse is
@@ -1268,8 +1268,8 @@ function plan(S, sk, opt = {}){
   const mkSplit = xs => {   // sets each store's x.want; returns the weakest store's sales, the friend amount and the total
     const lowRev = xs.length ? Math.min(...xs.map(x => x.rev)) : 0;
     let total = 0;
-    const friendPer = lowRev*0.7 >= 6000 ? 4000 : lowRev*0.7;   // the team's rule: 70% of the lowest store's sales, 4,000 once that reaches 6,000
-    for (const x of xs) { x.want = friendPer; total += x.want; }
+    for (const x of xs) { x.want = x.units.length ? Math.min(...x.units.map(n)) : 0; total += x.want; }   // the team's rule (2026-11-27): the store's lowest Unit Sold
+    const friendPer = xs.length ? Math.min(...xs.map(x => x.want)) : 0;
     return {lowRev, friendPer, total};
   };
   // a set of new stores fits when its cash need plus `reserve` days of marketing for every store fits the budget
@@ -1355,13 +1355,9 @@ function plan(S, sk, opt = {}){
   const mkWant = mkStores.reduce((s, x) => s + x.want, 0), mkCap = Math.min(cap.mktDay ?? Infinity, Math.max(0, cash)/Math.max(1, st.reserve));
   if (mkWant > mkCap) for (const x of mkStores) x.want *= mkCap/mkWant;
   for (const x of mkStores) {
-    x.budget = Math.floor(x.want/100 + 1e-9)*100;
-    // each age group's share of the city's people goes to the medium it responds to; a group not known yet is split evenly
-    const demo = Array.isArray(x.c.demo) && x.c.demo.some(v => n(v) > 0) ? x.c.demo.map(n) : [1, 1, 1], tot = demo.reduce((a, b) => a + b, 0);
-    const media = {"Media A": 0, "Media B": 0, "Media C": 0};
-    demo.forEach((v, i) => { const part = x.budget*v/tot; if (MEDIA.includes(mediaOf[i])) media[mediaOf[i]] += part; else for (const k of MEDIA) media[k] += part/3; });
-    const r = MEDIA.map(k => Math.floor(media[k]/100 + 1e-9)*100), top = r.indexOf(Math.max(...r));
-    r[top] += x.budget - r.reduce((a, b) => a + b, 0);   // the rounding goes to the biggest medium, so the three add up to the budget
+    x.budget = Math.floor(x.want + 1e-9);
+    // split as evenly as possible over all three media; the leftover units go to A, then B
+    const r = MEDIA.map((k, i) => Math.floor(x.budget/3) + (i < x.budget % 3 ? 1 : 0));
     x.media = Object.fromEntries(MEDIA.map((k, i) => [k, r[i]]));
   }
   const mkTotal = mkStores.reduce((s, x) => s + x.budget, 0);
@@ -1972,7 +1968,7 @@ function stepsOf(S, X){
     for (const [ag, v] of parts) { const was = mkSet[`${x.c.name}|${ag}`];
       if (v > 0 ? was !== v : n(was) > 0) add({tick: `mkt:${x.c.name}:${ag}`, op: "setMarketing", section: "marketing", must: was != null && v < n(was), target: {city: x.c.name, store: `${x.c.name} Retail`}, agency: ag, qty: v,
         action: v > 0 ? `Marketing for ${x.c.name}: ${f0(v)}/day with ${ag}.` : `Stop ${ag} marketing in ${x.c.name} (set 0).`, budget: v, perDay: true, budgetKey: "mkt",
-        why: `70% of the lowest store's sales (4,000 once that reaches 6,000): ${f0(x.budget)}/day${has.media ? ", split by who the city's people listen to" : ""}.`}); }
+        why: `the store's lowest units sold a day: ${f0(x.budget)}/day${has.media ? ", split evenly over Media A, B and C" : ""}.`}); }
   }
   const BM = has.b2b && !rescue && offers.some(o => o.kind === "bid") ? bidModel(S, day) : null;
   if (has.b2b && !rescue && offers.length) for (const b of b2bProducts) {
@@ -2693,7 +2689,7 @@ const COUNTS = {
   prod: () => `${S.P.length}`,
   cities: () => `${S.C.filter(c => c.open).length} open of ${S.C.length}`,
   mach: () => S.M.length ? `${S.own.length} owned · ${S.M.length} types` : "not allowed",
-  mkt: () => "70% rule",
+  mkt: () => "lowest units sold",
   costs: () => `${fk(n(S.g.salary))} staff / store`
 };
 const BODY = {
@@ -2748,7 +2744,7 @@ const BODY = {
     <p class="hint">m² / unit is read from the game; blank counts as 0.005 for the warehouse space.</p>` : ""}`,
   mkt: () => `<div class="grid">
     ${["mSen", "mAdu", "mJun"].map((k, i) => selFld("g." + k, `${["Seniors", "Adults", "Juniors"][i]} respond to`, [["", "Not known yet"], ["Media A", "Media A"], ["Media B", "Media B"], ["Media C", "Media C"]])).join("")}</div>
-    <p class="hint">Lowest sales = the weakest store's normal daily sales, read from the game (Cities → Sold / day); a store with none yet uses forecast × % we sell. Every store gets 70% of it in GBP a day, or 4,000 once that reaches 6,000. Media split follows each city's population for the groups you've set; the others are split evenly.</p>`,
+    <p class="hint">Each store's marketing a day = its lowest units sold for one product, read from the game (Cities → Sold / day); a store with none yet uses forecast × % we sell. It is split as evenly as possible over Media A, B and C.</p>`,
   costs: () => `<div class="grid">${fld("g.salary", "Staff / store / day")}${fld("g.hire", "Hiring / new store")}${fld("g.report", "Report fee / day")}${fld("g.whRent", "Warehouse rent / m²")}${fld("g.whM2", "Warehouse m² rented")}${fld("g.whStep", "Warehouse m² step")}</div>`
 };
 const SECS = [["today", "Today and game rules", true], ["b2b", "B2B vs retail weighting", false], ["safe", "Cash safety and bot", false], ["prod", "Products", true], ["cities", "Cities", true], ["mach", "Production", null], ["mkt", "Marketing formula", false], ["costs", "Fixed costs", false]];
@@ -2978,7 +2974,7 @@ function renderPlan(){
   const mktCard = !has.mkt ? "" : card("mkt", "MKT", "Marketing", `${fk(R.mkTotal)} / day`, R.mkStores.length && R.mkTotal > 0
     ? `<div class="tw"><table class="pt"><thead><tr><th class="tk"><span class="sr">Done</span></th><th>Store</th><th class="n">Sales / day</th><th class="n">Budget</th>${has.media ? '<th class="n">Media A</th><th class="n">Media B</th><th class="n">Media C</th>' : ""}</tr></thead><tbody>
       ${R.mkStores.map(x => `${tr(`mkt:${x.c.name}`, `marketing for ${x.c.name}`)}<td>${esc(x.c.name)}</td><td class="n"${x.real ? "" : ' title="No sales read yet: forecast × % we sell"'}>${fk(x.rev)}${x.real ? "" : "*"}</td><td class="n"><b>${f0(x.budget)}</b></td>${has.media ? `<td class="n">${f0(x.media["Media A"])}</td><td class="n">${f0(x.media["Media B"])}</td><td class="n">${f0(x.media["Media C"])}</td>` : ""}</tr>`).join("")}</tbody></table></div>
-      <p class="hint">Weakest store sells ~${fk(R.lowRev)}/day, so each store gets ${fk(R.friendPer)}${R.lowRev*0.7 >= 6000 ? " (capped at 4,000)" : " (70%)"}. ${mkSrc} After 2 days: ROI = extra units × margin ÷ spend. Raise 20% above 1.5, cut 50% under 1.</p>`
+      <p class="hint">Each store gets its lowest units sold a day (one product), split evenly over Media A, B and C. ${mkSrc} After 2 days: ROI = extra units × margin ÷ spend. Raise 20% above 1.5, cut 50% under 1.</p>`
     : `<p class="hint">${R.mkFactor === 0 ? `No marketing now (${R.emerg ? "emergency" : "closing phase"}).` : "Open stores first."}</p>`);
 
   // prices
@@ -3001,7 +2997,7 @@ function renderPlan(){
     ["mach", "Machines to buy", f0(okM.length), machMix || "none pay back", okM.length > 0, has.prod],
     ["b2b", "B2B fund", fk(R.b2bFund), `${pct(b2bPct)} of investable`, R.b2bFund > 0, has.b2b],
     ["retail", "Retail stock", fk(R.spent.stock), "vendor orders today", R.spent.stock > 0, true],
-    ["mkt", "Marketing / day", fk(R.mkTotal), "70% rule", R.mkTotal > 0, has.mkt],
+    ["mkt", "Marketing / day", fk(R.mkTotal), "lowest units sold", R.mkTotal > 0, has.mkt],
     ["low", "Lowest cash", fk(T.low.net), `day ${f0(T.low.day)} · floor ${fk(T.low.floor)}`, T.low.head >= -0.5, true]].filter(x => x[5]);
   const summary = `${R.opened.length ? `Open <b>${R.opened.map(x => esc(x.c.name)).join(", ")}</b>. ` : ""}${okM.length ? `Buy <b>${machMix}</b> (${esc(MPRIO[g.mPrio] || "")}). ` : ""}${has.b2b ? `Forecasts say <b>${R.focus === "B2B" ? "focus B2B" : R.focus === "Retail" ? "focus retail" : "split retail and B2B"}</b>: B2B is ~${pct(R.wB2B)} of the profit potential, so it gets ${pct(b2bPct)} of the ${fk(R.investable)} investable cash${b2bCut ? ` (less than its usual ${pct(R.fundShare)}, so every store keeps its first ${R.lead + 2} days of stock)` : ""}.` : R.opened.length || okM.length ? "" : "No new stores or machines today: stock the open stores as below."}`.trim();
   const parts = [["Stores", R.spent.stores, "c1", true], ["Machines", R.spent.mach, "c2", has.prod], ["Raw materials", R.rawCost, "c3", has.prod], ["B2B fund", R.b2bFund, "c4", has.b2b], ["Retail stock", R.spent.stock, "c5", true], ["Left", Math.max(0, R.cashLeft), "c0", true]].filter(x => x[3]);

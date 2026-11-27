@@ -31,10 +31,13 @@ check("bids 0.40 under the last lowest rival bid", pick.price === 17.2, JSON.str
 const low = E.bidPick(M, {name: "Apple Juice", floorEach: 19}, {maxBid: 20}, R);
 check("never under the floor", low.price >= 19, low.price);
 
-// marketing: every open store gets 70% of the lowest store's sales (GBP/day); 6,000 or more stays at 4,000
-const mkOf = x => { const S = game(1e8); S.C.forEach(c => c.d = c.d.map(v => Math.round(v*x))); const R = E.plan(S, "balanced"); return {R, want: R.lowRev*0.7 >= 6000 ? 4000 : Math.floor(R.lowRev*0.7/100)*100}; };
-for (const x of [0.05, 1]) { const {R, want} = mkOf(x);
-  check(`marketing ${want === 4000 ? "stays at 4,000 once 70% of the lowest sales is 6,000+" : "is 70% of the lowest store's sales"}`, R.mkStores.length > 0 && R.mkStores.every(m => m.budget === want), `lowest ${Math.round(R.lowRev)}, stores ${R.mkStores.map(m => m.budget).join(",")}, want ${want}`); }
+// marketing: each open store's daily total = its own lowest Unit Sold, split as evenly as possible over Media A, B and C (user, 2026-11-27)
+{ const S = game(1e8); S.C[0].sold = [1359, 1477, 1600]; S.C[1].sold = [1000, 1001, 2000];
+  const R = E.plan(S, "balanced"), m = n => R.mkStores.find(x => x.c.name === S.C[n].name) || {};
+  check("marketing total = the store's lowest units sold", m(0).budget === 1359 && m(1).budget === 1000, R.mkStores.map(x => x.c.name + " " + x.budget).join(", "));
+  check("split evenly over all 3 media", JSON.stringify(m(0).media) === JSON.stringify({"Media A": 453, "Media B": 453, "Media C": 453}) && JSON.stringify(m(1).media) === JSON.stringify({"Media A": 334, "Media B": 333, "Media C": 333}), JSON.stringify([m(0).media, m(1).media]));
+  const mk = E.stepsOf(S, E.planSafe(S, "balanced")).steps.filter(s => s.op === "setMarketing" && s.target.city === S.C[1].name).map(s => s.agency + " " + s.qty).join(", ");
+  check("the bot gets 3 marketing steps per store, even with no media picked for age groups", mk === "MA 334, MB 333, MC 333", mk); }
 
 // Web Market: never buy; our leftover goes up at the vendor's price minus 0.6 a unit
 { const S = game(1e8); S.web = {us: "FF", listings: [{id: 9, product: "Apple Juice", price: 1, qty: 500, seller: "Rival"}]};

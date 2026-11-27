@@ -5,7 +5,7 @@ Hosts the FF MonsoonSIM game reader so the **FF live** bookmark can load the new
 - `reader.js` is the reader (v13.7). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
 - `index.html` is the install page with the bookmark for Mode 14 (Mode 12i is no longer played).
 - `ff-live.user.js` is the same loader as a Tampermonkey userscript: the FF panel opens by itself on every game tab, with no bookmark to click.
-- `calc/index.html` is the FF calculator as a web page (v42, Mode 14 only): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
+- `calc/index.html` is the FF calculator as a web page (v43, Mode 14 only): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
 - `docs/plan-format.md` is the message the calculator sends the bot each day, and the reports the bot sends back. `docs/plan-sample.json` is an example.
 - `fonts/` holds the calculator's fonts (Archivo and IBM Plex Sans, with their licenses), so the page loads nothing from other sites. `og.png` is the picture shown when a link is shared.
 - `test/` is a stand-in game for testing the bot without a real game. See [test/README.md](test/README.md).
@@ -26,7 +26,7 @@ It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag fo
 ## Mode 14
 
 - Buying goes through the game's order wizard (vendor, then place and quantities, then confirm). Once a day the bot also asks each vendor for a discount with the Negotiate link.
-- Marketing per store is 70% of the lowest store's daily sales (GBP). Once that reaches 6,000, every store gets 4,000 instead. The bot sets it through the game's marketing wizard, matching each box to its store by the city name.
+- Marketing per store is that store's lowest units sold a day (one product), split as evenly as possible over Media A, B and C. The bot sets it through the game's marketing wizard, matching each box to its store by the city name.
 - B2B: the share of stock for B2B grows or shrinks with cash against the reserve (x0.5 to x1.5), and bids go 0.40 under the lowest rival price from the last result.
 - City names and the number of days change every game: the calculator always takes them from the game.
 - Auto Replenishment is never used: its operating costs run away.
