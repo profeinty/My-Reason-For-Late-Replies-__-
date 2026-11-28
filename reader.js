@@ -3,7 +3,7 @@
 (async () => {
   if (window.__ff && window.__ff.stop) window.__ff.stop();
   document.getElementById("ff-reader-box")?.remove(); document.getElementById("ff-calc")?.remove();
-  const V = 4, BUILD = "v13.7", LIST = 1030, CLICK = 1500;
+  const V = 4, BUILD = "v13.8", LIST = 1030, CLICK = 1500;
   const MODE = String(window.__FF_MODE || ""), TAG = MODE;
   const LOGK = "ff-reader-log:" + location.host;
   let LOG = []; try { LOG = JSON.parse(localStorage.getItem(LOGK)) || []; } catch (e) {}
@@ -767,6 +767,10 @@
   const secName = k => (SECTIONS.find(x => x[0] === k) || [k, k])[1];
   const ACTS = {b2b: ["accept", "bid", "ship"], rent_shop: ["rent", "release"], rent_wh: ["rent", "release"], buy_store: ["buy"], buy_raw: ["buy"], buy_wh_goods: ["buy"],
     marketing: ["set", "pause"], machine: ["buy", "priority"], ecom: ["buy", "sell", "sellto"], price: null};
+  // team roles: each teammate's bot runs only its part of the plan, so two bots never do the same step
+  const ROLES = {all: ["Everything", null], orders: ["Orders and space", ["rent_shop", "rent_wh", "buy_store", "buy_raw", "buy_wh_goods", "machine", "price", "other"]],
+    deals: ["B2B deals", ["b2b"]], market: ["Marketing and Web Market", ["marketing", "ecom"]]};
+  const roleHas = sec => { const r = (ROLES[mem.role] || ROLES.all)[1]; return !r || r.includes(sec); };
   const BOT = {on: false, busy: false, prepping: false, cut: false, loop: null, say: "", note: "", warn: "", plans: {}, run: null, days: {},
     pages: {}, forms: {}, expect: [], fails: 0, prepDay: 0, startAt: 0, dry: false, checking: false, check: [], checkAt: 0, askAt: 0};
   const dayKey = d => BOT.dry ? "p" + d : d;
@@ -965,7 +969,7 @@
     return submit(f, set, h, day);
   };
   const snapFrom = () => D && D.maxDay ? Math.ceil(D.maxDay*0.4) : 0;
-  const snapOn = day => B2B.mode === "all" || mem.snap !== false && snapFrom() > 0 && day >= snapFrom();
+  const snapOn = day => roleHas("b2b") && (B2B.mode === "all" || mem.snap !== false && snapFrom() > 0 && day >= snapFrom());
   const owedOf = prod => Object.values(BIDS.rows).map(fin).filter(o => o.so && o.result === "won" && !o.deliveredDay && prodIs(o.product, prod)).reduce((t, o) => t + Math.max(0, (o.qty || 0) - (o.allocated || 0)), 0);
   const snapSaid = new Set(), snapIds = new Set();
   const snap = async (day, {h, cards}) => {
@@ -1117,9 +1121,9 @@
     const rules = rulesOf(run); if (rules.autoShip === false) return;
     const max = num(rules.maxShipsPerDay) ?? 4, stores = rules.shipFromStores === true, known = (D.warehouses || []).length > 0, out = [];
     const planned = new Set([...rec.shipSO, ...run.steps.filter(s => s.sec === "b2b" && s.act === "ship" && !s.auto).map(s => String(s.so || (orderOf(s.offer) || {}).so || s.offer))]);
-    const todo = $id("MENU2_B2Bsoxx") ? Object.values(BIDS.rows).map(fin).filter(o => o.so && o.result === "won" && o.allocUrl && !o.deliveredDay && !planned.has(String(o.so)))
+    const todo = $id("MENU2_B2Bsoxx") && roleHas("b2b") ? Object.values(BIDS.rows).map(fin).filter(o => o.so && o.result === "won" && o.allocUrl && !o.deliveredDay && !planned.has(String(o.so)))
       .sort((a, b) => (a.due ?? 1e9) - (b.due ?? 1e9) || +a.so - +b.so).map(o => ({o, id: `auto:ship:${o.so}`, url: o.allocUrl, text: `ship order ${o.so}: ${o.product}, due day ${o.due ?? "?"}`})) : [];
-    if (rules.shipWeb !== false && $id("MENU2_web_sos") && (mem.webPosted || ((D.web || {}).sos || []).some(w => w.toShip))) try {
+    if (rules.shipWeb !== false && roleHas("ecom") && $id("MENU2_web_sos") && (mem.webPosted || ((D.web || {}).sos || []).some(w => w.toShip))) try {
       const ws = orderRows(await page("MENU2_web_sos")).filter(w => w.allocUrl);
       todo.unshift(...ws.map(w => ({o: {so: w.id, product: w.product, qty: w.qty, due: null}, id: `auto:webship:${w.id}`, url: w.allocUrl, text: `ship web order ${w.id}${w.product ? ": " + w.product : ""}`})));
     } catch (e) { run.notes.push("Web sales orders: " + e.message); }
@@ -1833,6 +1837,7 @@
         else if (!RUN[s.sec]) mark(s, "skipped", `the bot doesn't know “${s.section || "?"}” steps`);
         else if (ACTS[s.sec] && !ACTS[s.sec].includes(s.act)) mark(s, "skipped", s.sec === "machine" && /^(set|switch|pause)$/.test(s.act) ? "setting what a machine makes isn't mapped yet (no game with a machine seen so far): do it in the game"
           : `the bot doesn't know “${s.act || "?"}” for ${secName(s.sec).toLowerCase()}`);
+        else if (!roleHas(s.sec)) mark(s, "skipped", `a teammate's bot does this part (this bot's role: ${ROLES[mem.role][0]})`);
         else if (only && !s.must) mark(s, "skipped", plan.rescue === true ? "cash is short today: only the must-do steps" : "the plan's own checks didn't all pass: only the must-do steps");
       }
     }
@@ -2101,6 +2106,7 @@
       <div class="pane" data-t="today" data-f="today"></div><div class="pane" data-t="deals" data-f="deals"></div><div class="pane" data-t="stores" data-f="stores"></div><div class="pane" data-t="stock" data-f="stock"></div><div class="pane" data-t="checks" data-f="checks"></div>
       <div class="pane" data-t="bot"><button class="a big go" data-bot="go" data-f="botgo"></button>
       <div class="r"><button class="a" data-bot="check" data-f="botcheck">Check the screens</button><button class="a" data-bot="report">Copy report</button><label class="k"><input type="checkbox" data-bot="dry" data-f="botdry"> Practice: do everything but send</label></div><div class="r"><label class="k"><input type="checkbox" data-bot="auto" data-f="botauto"> Run by itself: start now and every time the game opens (this computer)</label></div>
+      <div class="r"><label class="k">Role <select data-bot="role" data-f="botrole">${Object.entries(ROLES).map(([k, r]) => `<option value="${k}">${r[0]}</option>`).join("")}</select></label></div>
       <div class="r"><label class="k"><input type="checkbox" data-bot="snap" data-f="botsnap"> <span data-f="snaptext">Take fixed-price B2B deals the moment a day starts, from 4/10 of the game</span></label></div>
       <details><summary class="k">Warehouse space: <span data-f="whsum">the calculator decides</span></summary><div class="r"><select data-wh="city" data-f="whcity" aria-label="Warehouse"></select>
       <input type="number" min="500" step="500" data-wh="m2" placeholder="m²" aria-label="Square metres" style="width:7em"><select data-wh="term" aria-label="Contract"><option value="">its contract now</option><option value="1">1-day contract</option><option value="7">7-day contract</option><option value="30">30-day contract</option></select>
@@ -2135,7 +2141,7 @@
     const bg = root.querySelector('[data-f="botgo"]'); put('[data-f="botgo"]', BOT.on ? "■ Stop the bot" : BOT.dry ? "▶ Start a practice run" : "▶ Start the bot"); bg.classList.toggle("go", !BOT.on); bg.classList.toggle("stop", BOT.on);
     const bd = root.querySelector('[data-f="botdry"]'); bd.checked = BOT.dry; bd.disabled = BOT.on || !!BOT.loop;
     const ba = root.querySelector('[data-f="botauto"]'); ba.checked = !!mem.auto; ba.disabled = BOT.dry;
-    root.querySelector('[data-f="botsnap"]').checked = mem.snap !== false;
+    root.querySelector('[data-f="botsnap"]').checked = mem.snap !== false; root.querySelector('[data-f="botrole"]').value = ROLES[mem.role] ? mem.role : "all";
     put('[data-f="snaptext"]', `Take fixed-price B2B deals the moment a day starts, ${snapFrom() ? `from day ${n(snapFrom())} (4/10 of the game)` : "from 4/10 of the game"}`);
     const W = Object.entries(mem.whUser || {}), cities = whCities();
     put('[data-f="whsum"]', W.length ? esc(W.map(([k, u]) => `${k} ${n(u.m2)} m²`).join(", ")) : "the calculator decides");
@@ -2149,6 +2155,7 @@
   }
   root.addEventListener("change", e => {
     if (e.target.dataset && e.target.dataset.bot === "auto") { mem.auto = !!e.target.checked; save(); log(mem.auto ? "Bot: runs by itself from now on, every time the game opens." : "Bot: starts only when you press Start."); if (mem.auto && !BOT.dry) botStart(true); paint(); return; }
+    if (e.target.dataset && e.target.dataset.bot === "role") { mem.role = e.target.value; save(); log(`Bot: role ${ROLES[mem.role][0]}${mem.role === "all" ? "" : ": the other parts of the plan are left to teammates' bots"}.`); paint(); return; }
     if (e.target.dataset && e.target.dataset.bot === "snap") { mem.snap = !!e.target.checked; save(); log(mem.snap ? "Bot: takes fixed-price B2B deals the moment a day starts (from 4/10 of the game)." : "Bot: B2B deals only from the calculator's plan."); paint(); return; }
     if (e.target.dataset && e.target.dataset.bot === "dry") { if (!BOT.on && !BOT.loop) BOT.dry = !!e.target.checked; paint(); return; }
     const bk = e.target.dataset && e.target.dataset.b2b;
@@ -2213,7 +2220,7 @@
     busy = ""; paint();
   };
   async function next(){
-    if (newGame) { newGame = false; mem = Object.fromEntries(["gapFloors", "auto", "calcTab", "snap"].filter(k => mem[k] != null).map(k => [k, mem[k]])); save();
+    if (newGame) { newGame = false; mem = Object.fromEntries(["gapFloors", "auto", "calcTab", "snap", "role"].filter(k => mem[k] != null).map(k => [k, mem[k]])); save();
       D = null; ready = false; dayRead = 0; sentBody = lastSig = ""; b2bSeries = salesWait = null; stale = ""; lap = {day: 0};
       BIDS = {rows: {}, team: ""}; bidsSave(); WEB.rows = []; WEB.post = null; APR = {day: 0}; APRX = []; aprSave(); log("A new game: starting over."); }
     if (!seenDay) return false;

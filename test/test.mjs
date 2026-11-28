@@ -172,7 +172,7 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   const mem = await p.evaluate(() => JSON.parse(localStorage.getItem("ff-reader:" + location.host + ":14")).calcTab);
   check("D2 own tab preferred for a while", typeof mem === "number" && mem > Date.now() + 3600e3, String(mem));
   const rep = await p.evaluate(() => window.__ff.report());
-  check("D2 report has the link and the log", /reader v13\.7/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
+  check("D2 report has the link and the log", /reader v13\.8/.test(rep) && /Calculator: linked via tab/.test(rep) && /didn't answer/.test(rep) && /Linked to the FF calculator in its own tab/.test(rep), rep.split("\n").slice(0, 8).join(" | "));
   check("D2 no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
@@ -669,6 +669,16 @@ const txLine = L => L.S.tx.filter(x => x.id >= 1990).map(x => `${x.tpe} ${x.id} 
   check("M14c Berlin 3,000 with Media A, Cologne 600 with Media C, the rest kept", L.S.mkt.MA[11] === 3000 && L.S.mkt.MC[17] === 600 && L.S.mkt.MA[17] === 2000 && L.S.mkt.MA[13] === 0, JSON.stringify(L.S.mkt));
   check("M14c one confirm per media", W.filter(x => x.act === "MarketingExecute").length === 2, W.map(x => x.act).join(","));
   check("M14c no page errors", !errs.length, errs.join("; "));
+  await ctx.close();
+}
+{ // RO: team roles. A bot set to "B2B deals" does only the b2b part of the plan; the rest is left to teammates' bots
+  const {ctx, p, errs} = await open("", {...MEM, role: "deals"});
+  await p.evaluate(pl => window.__ff.plan(pl), only(s => ["b2b", "buy_store", "marketing"].includes(s.section))); await click(p, '[data-bot="go"]'); await runDone(p);
+  const S = await steps(p), mine = S.filter(s => s.sec === "b2b"), rest = S.filter(s => s.sec !== "b2b");
+  check("RO deals role runs the B2B steps", mine.length > 0 && mine.every(s => s.st === "done"), mine.map(s => s.id + ":" + s.st + " " + s.why).join(" | "));
+  check("RO and leaves the rest to teammates", rest.length > 0 && rest.every(s => s.st === "skipped" && /teammate/.test(s.why)), rest.map(s => s.id + ":" + s.st + " " + s.why).join(" | "));
+  check("RO role shown in the Bot tab", await p.evaluate(new Function(`return ${sh('[data-f="botrole"]')}.value`)) === "deals");
+  check("RO no page errors", !errs.length, errs.join("; "));
   await ctx.close();
 }
 await b.close();

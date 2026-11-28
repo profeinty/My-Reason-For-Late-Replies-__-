@@ -2,7 +2,7 @@
 
 Hosts the FF MonsoonSIM game reader so the **FF live** bookmark can load the newest version on every click.
 
-- `reader.js` is the reader (v13.7). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
+- `reader.js` is the reader (v13.8). It opens a draggable FF panel on the game tab with Live, Today, Stores, Stock, Checks, Deals and Bot tabs; Alt+F hides it. The Bot tab plays the day from the calculator's plan (see below). Edit it and push to `main` to update everyone's bookmark.
 - `index.html` is the install page with the bookmark for Mode 14 (Mode 12i is no longer played).
 - `ff-live.user.js` is the same loader as a Tampermonkey userscript: the FF panel opens by itself on every game tab, with no bookmark to click.
 - `calc/index.html` is the FF calculator as a web page (v43, Mode 14 only): https://profeinty.github.io/My-Reason-For-Late-Replies-__-/calc/. Same team passcode; numbers stay on each device (team sharing is only in the other version). Its Go live, FF live bookmark and Copy game reader all use `reader.js` from this site.
@@ -35,13 +35,14 @@ It sets `window.__FF_MODE` to the calculator mode, then adds a `<script>` tag fo
 
 The Deals tab checks B2B > B2B Offers and shows which open deals it would grab. Smart mode: enough stock in the warehouses and price at least cost x margin (default 1.15); bids go in 3% under the max price. Grab all mode skips those checks. One deal per product per day (the game's limit). The Deals tab only previews; the Bot tab accepts and bids on the deals the calculator's plan picks. (The Auto tab and its auto-click were removed in v11.)
 
-## Bot (reader v13.7)
+## Bot (reader v13.8)
 
 The Bot tab follows the calculator's plan: every quantity, price and budget comes from the calculator, nothing is a fixed number in the bot.
 
 1. Open the game and click your FF live bookmark, then open the **Bot** tab.
 2. **Check the screens** reads every screen the bot uses and sends nothing. **Practice** does everything except send, so you can see what it would do.
 3. **Start** opens the web calculator at the bottom left of the game tab (if it isn't linked yet), takes its plan for the day and runs it in order: B2B deals and bids, machines, warehouse space, shop space, store stock, raw materials, stock for B2B, Web Market, marketing. In Mode 14 there are no machines or raw materials, and the team opens shops and warehouses by hand, so the plan has no rent steps for them. Each section stays within its budget and cash stays above the plan's reserve. It reports each step back to the calculator and takes the next day's plan when the day changes.
+- Team roles (Bot tab, Role): with three teammates in the same game, each picks Orders and space, B2B deals, or Marketing and Web Market, and their bot runs only that part of the plan. Everything (the default) runs it all.
 4. After the plan's steps it ships won B2B orders (and Web Market orders) from the warehouse stock, earliest due first, so they aren't late.
 5. It approves its own requests. In the game each order, rental and expense waits as "Requested" on its Transactions screen until someone presses ✓. While the next sections send, the bot reads those screens and approves only its own new requests from today (by the same player as its other requests). It never approves a teammate's request, an older one, or a price change, and never presses Cancel. If the game refuses an approval it tries once more, then says which requests still wait.
 6. From 4/10 of the game on (day 24 of 60, day 32 of 80) it takes fixed-price B2B deals the moment a day starts, without waiting for the calculator: only deals the Deals tab would grab (in stock in the warehouses after what won orders still need, price at least cost x margin and the plan's floor), one per product a day. Bids still come from the plan. Untick **Take fixed-price B2B deals the moment a day starts** in the Bot tab to leave every deal to the plan.
